@@ -12,6 +12,10 @@ export class BattleHUD extends ex.ScreenElement {
   private currentParty: any[] = [];
   private currentTurnIndex: number = 0;
   private isProcessingVictory: boolean = false;
+  private isEnemyTurn: boolean = false;
+
+  // UI Elements
+  private turnStatusLabel!: ex.Label;
 
   public onVictory?: () => void;
 
@@ -24,8 +28,27 @@ export class BattleHUD extends ex.ScreenElement {
     });
     this.addChild(background);
 
+    // --- NEW: Turn Status Indicator at the Top ---
+    this.turnStatusLabel = new ex.Label({
+      text: 'ROLLING INITIATIVE...',
+      pos: ex.vec(game.drawWidth / 2, 50),
+      font: new ex.Font({
+        size: 28,
+        color: ex.Color.White,
+        textAlign: ex.TextAlign.Center,
+        family: 'monospace',
+        bold: true,
+      }),
+    });
+    this.addChild(this.turnStatusLabel);
+
     game.input.keyboard.on('press', (evt) => {
-      if (!this.graphics.visible || this.isProcessingVictory) return;
+      if (
+        !this.graphics.visible ||
+        this.isProcessingVictory ||
+        this.isEnemyTurn
+      )
+        return;
 
       if (evt.key === ex.Keys.Digit1 || evt.key === ex.Keys.Num1)
         this.executeSkill(0);
@@ -36,12 +59,7 @@ export class BattleHUD extends ex.ScreenElement {
     this.graphics.visible = false;
   }
 
-  /**
-   * Resets the HUD and populates new enemies.
-   * Passing an empty array [] will act as a full cleanup.
-   */
   public updateEnemyList(enemies: Enemy[]) {
-    // Force cleanup of all existing dynamic elements
     const allDynamicElements = [
       ...this.enemyElements,
       ...this.partyElements,
@@ -54,6 +72,7 @@ export class BattleHUD extends ex.ScreenElement {
     this.skillButtons = [];
     this.hpBarFills.clear();
     this.isProcessingVictory = false;
+    this.isEnemyTurn = false;
 
     if (enemies.length === 0) return;
 
@@ -96,7 +115,23 @@ export class BattleHUD extends ex.ScreenElement {
   public updatePlayerParty(summons: any[]) {
     this.currentParty = summons;
     this.currentTurnIndex = 0;
-    this.refreshPartyUI();
+
+    const playerRoll = Math.floor(Math.random() * 6) + 1;
+    const enemyRoll = Math.floor(Math.random() * 6) + 1;
+
+    if (enemyRoll > playerRoll) {
+      this.isEnemyTurn = true;
+      this.turnStatusLabel.text = 'ENEMY TURN';
+      this.turnStatusLabel.font.color = ex.Color.Red;
+      this.refreshPartyUI();
+      setTimeout(() => this.enemyTurn(), 400);
+    } else {
+      this.isEnemyTurn = false;
+      const activeDemon = this.currentParty[this.currentTurnIndex];
+      this.turnStatusLabel.text = `${activeDemon?.name.toUpperCase()}'S TURN`;
+      this.turnStatusLabel.font.color = ex.Color.Cyan;
+      this.refreshPartyUI();
+    }
   }
 
   private refreshPartyUI() {
@@ -104,7 +139,8 @@ export class BattleHUD extends ex.ScreenElement {
     this.partyElements = [];
 
     this.currentParty.forEach((demon, i) => {
-      const isCurrent = i === this.currentTurnIndex;
+      const isCurrent = i === this.currentTurnIndex && !this.isEnemyTurn;
+
       const container = new ex.ScreenElement({
         pos: ex.vec(250 + i * 200, 550),
       });
@@ -173,19 +209,123 @@ export class BattleHUD extends ex.ScreenElement {
       const stillAlive = Array.from(this.hpBarFills.keys()).filter(
         (e) => e.currentHp > 0,
       );
+
       if (stillAlive.length === 0) {
         this.showVictoryState();
         return;
       }
 
-      this.currentTurnIndex =
-        (this.currentTurnIndex + 1) % this.currentParty.length;
-      this.refreshPartyUI();
+      const hitWeakness =
+        target.weakness.toLowerCase() === damageType.toLowerCase();
+
+      if (hitWeakness) {
+        // Weakness hit: update indicator text to highlight the bonus turn
+        this.turnStatusLabel.text = `${activeDemon.name.toUpperCase()} (BONUS TURN)`;
+        this.turnStatusLabel.font.color = ex.Color.Yellow;
+        this.refreshPartyUI();
+      } else {
+        this.currentTurnIndex++;
+
+        if (this.currentTurnIndex >= this.currentParty.length) {
+          this.skillButtons.forEach((b) => this.removeChild(b));
+          this.skillButtons = [];
+          this.enemyTurn();
+        } else {
+          // Update string to show the next dynamic party member's turn
+          const nextDemon = this.currentParty[this.currentTurnIndex];
+          this.turnStatusLabel.text = `${nextDemon?.name.toUpperCase()}'S TURN`;
+          this.turnStatusLabel.font.color = ex.Color.Cyan;
+          this.refreshPartyUI();
+        }
+      }
     }
+  }
+
+  public async enemyTurn() {
+    this.isEnemyTurn = true;
+    this.refreshPartyUI();
+
+    const aliveEnemies = Array.from(this.hpBarFills.keys()).filter(
+      (e) => e.currentHp > 0,
+    );
+
+    if (aliveEnemies.length === 0) return;
+
+    for (const enemy of aliveEnemies) {
+      // Dynamic header updates to specify WHICH enemy is currently acting
+      this.turnStatusLabel.text = `${enemy.enemyName.toUpperCase()}'S TURN`;
+      this.turnStatusLabel.font.color = ex.Color.Red;
+
+      const target = this.currentParty[0];
+
+      if (target && target.hp > 0) {
+        const damage = 10;
+        target.hp = Math.max(0, target.hp - damage);
+
+        if (Resources.BlipSound.isLoaded()) Resources.BlipSound.play(0.1);
+        this.refreshPartyUI();
+
+        if (target.hp <= 0) {
+          this.triggerGameOver();
+          return;
+        }
+
+        const enemyElement = Element.Physical;
+        if (
+          target.weakness &&
+          target.weakness.toLowerCase() === enemyElement.toLowerCase()
+        ) {
+          this.turnStatusLabel.text = `${enemy.enemyName.toUpperCase()} (WEAKNESS STRIKE!)`;
+          target.hp = Math.max(0, target.hp - 5);
+          this.refreshPartyUI();
+          if (target.hp <= 0) {
+            this.triggerGameOver();
+            return;
+          }
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, 800));
+      }
+    }
+
+    this.isEnemyTurn = false;
+    this.currentTurnIndex = 0;
+
+    // Hand turn control back over and print out the starting demon's name
+    const leadCharacter = this.currentParty[0];
+    this.turnStatusLabel.text = `${leadCharacter?.name.toUpperCase()}'S TURN`;
+    this.turnStatusLabel.font.color = ex.Color.Cyan;
+    this.refreshPartyUI();
+  }
+
+  private triggerGameOver() {
+    this.isProcessingVictory = true;
+    this.turnStatusLabel.text = 'DEFEAT';
+    this.turnStatusLabel.font.color = ex.Color.Red;
+
+    const deathLabel = new ex.Label({
+      text: 'YOU DIED',
+      pos: ex.vec(game.drawWidth / 2, game.drawHeight / 2),
+      z: 100,
+      font: new ex.Font({
+        size: 80,
+        color: ex.Color.Red,
+        family: 'monospace',
+        textAlign: ex.TextAlign.Center,
+        bold: true,
+      }),
+    });
+    this.addChild(deathLabel);
+
+    setTimeout(() => {
+      window.location.reload();
+    }, 3000);
   }
 
   private showVictoryState() {
     this.isProcessingVictory = true;
+    this.turnStatusLabel.text = 'VICTORY';
+    this.turnStatusLabel.font.color = ex.Color.Yellow;
 
     const victoryLabel = new ex.Label({
       text: 'VICTORY!',
@@ -225,8 +365,6 @@ export class BattleHUD extends ex.ScreenElement {
 
   public setVisible(visible: boolean) {
     this.graphics.visible = visible;
-
-    // Recursive visibility for all children (Labels, UI blocks, etc)
     this.children.forEach((child) => {
       if (child instanceof ex.Actor || child instanceof ex.ScreenElement) {
         child.graphics.visible = visible;
