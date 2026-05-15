@@ -304,7 +304,7 @@ export class BattleHUD extends ex.ScreenElement {
     this.turnStatusLabel.font.color = ex.Color.Red;
 
     const deathLabel = new ex.Label({
-      text: 'YOU DIED',
+      text: 'YOU DIEDD',
       pos: ex.vec(game.drawWidth / 2, game.drawHeight / 2),
       z: 100,
       font: new ex.Font({
