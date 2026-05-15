@@ -8,6 +8,12 @@ export class Enemy extends ex.Actor {
   public weakness: Element;
   public enemyName: string;
 
+  public stats = {
+    str: 10,
+    mag: 10,
+    def: 5,
+  };
+
   constructor(
     x: number,
     y: number,

@@ -5,9 +5,12 @@ import { Element } from '../types/combat';
 import { Resources } from '../resources';
 
 export class Slime extends Enemy {
+
   constructor(x: number, y: number) {
     // Pass everything to the base Enemy constructor
     super(x, y, 'Slime', 60, Element.Electric);
+
+    this.stats = { str: 8, mag: 5, def: 12 };
   }
 
   onInitialize(engine: ex.Engine) {

@@ -7,6 +7,8 @@ import { Element } from '../types/combat';
 export class Ghost extends Enemy {
   constructor(x: number, y: number) {
     super(x, y, 'Ghost', 40, Element.Fire);
+
+    this.stats = { str: 5, mag: 15, def: 3 };
   }
 
   onInitialize(engine: ex.Engine) {
