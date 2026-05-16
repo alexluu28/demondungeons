@@ -6,6 +6,7 @@ import { LevelGenerator } from '../logic/level-generator';
 import { BattleHUD } from '../ui/battle-hud';
 import { ExplorationHUD } from '../ui/exploration-hud';
 import { game } from '../resources';
+import { state } from '../state';
 
 export class DungeonScene extends ex.Scene {
   private summoner!: Summoner;
@@ -54,10 +55,9 @@ export class DungeonScene extends ex.Scene {
     });
 
     this.battleHud.updateEnemyList(enemyGroup);
-    this.battleHud.updatePlayerParty([
-      { name: 'Pixie', hp: 45, mp: 20, skills: ['Zio', 'Dia'] },
-      { name: 'Jack Frost', hp: 70, mp: 15, skills: ['Bufu', 'Mabufu'] },
-    ]);
+
+    this.battleHud.updatePlayerParty(state.party);
+
     this.battleHud.setVisible(true);
   }
 
