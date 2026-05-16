@@ -6,6 +6,7 @@ export enum Element {
   Ice = 'Bufu',
   Electric = 'Zio',
   Force = 'Zan',
+  Dark = 'Mudo'
 }
 
 export interface Attack {
