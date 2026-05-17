@@ -65,14 +65,21 @@ export class DungeonScene extends ex.Scene {
   /**
    * Cleans up combat, drops loot, and manages post-encounter floor checks.
    */
+  /**
+   * Cleans up combat, drops loot, and manages post-encounter floor checks.
+   */
   public endCombat() {
     this.isCombatActive = false;
     this.explorationHud.graphics.visible = true;
 
-    // 1. Drop Loot (using world positions before enemies are fully removed)
-    this.enemies.forEach((enemy) => {
-      if (enemy.isKilled() && enemy.graphics.visible === false) {
-        const loot = new Coin(enemy.pos.x, enemy.pos.y);
+    // 1. FIX: Sweep all killed enemies currently residing in the scene for loot drops
+    this.actors.forEach((actor) => {
+      if (
+        actor instanceof Enemy &&
+        actor.isKilled() &&
+        actor.graphics.visible === false
+      ) {
+        const loot = new Coin(actor.pos.x, actor.pos.y);
         this.add(loot);
         loot.graphics.visible = true;
       }
@@ -82,7 +89,7 @@ export class DungeonScene extends ex.Scene {
     this.battleHud.updateEnemyList([]);
     this.battleHud.setVisible(false);
 
-    // 3. Restore Visibility to the world
+    // 3. Restore Visibility to survivors in the world
     this.entities.forEach((entity) => {
       if (
         entity instanceof ex.Actor &&
@@ -96,20 +103,15 @@ export class DungeonScene extends ex.Scene {
     this.summoner.canMove = true;
     console.log('Combat resolved. The path forward is clear.');
 
-    // --- FIX: Force an immediate escape check if standing on the stairs post-boss ---
+    // --- Force an immediate escape check if standing on the stairs post-boss ---
     const stairsActor = this.actors.find((actor) => actor.name === 'Stairs');
-
     if (stairsActor && this.summoner) {
       const distanceToStairs = this.summoner.pos.distance(stairsActor.pos);
-
-      // If player is overlapping the stairs coordinates directly where the boss died
       if (distanceToStairs < 40) {
         console.log(
           '👑 Guardian defeated while on exit tile! Autoloading next floor...',
         );
-
         if (Resources.BlipSound.isLoaded()) Resources.BlipSound.play(0.2);
-
         this.nextFloorSequence();
       }
     }
@@ -121,7 +123,32 @@ export class DungeonScene extends ex.Scene {
     // Check for Enemy Encounters
     for (const enemy of this.enemies) {
       if (!enemy.isKilled() && this.summoner.pos.distance(enemy.pos) < 40) {
-        this.startCombat([enemy]);
+        // --- NEW: Group Encounter Logic ---
+        const enemyGroup: Enemy[] = [enemy]; // Start with the overworld monster
+
+        // Don't multiply the Boss! Keep boss fights as a solitary 1v1 challenge.
+        if (enemy.enemyName !== 'Boss') {
+          // Identify the specific class constructor (e.g., Slime or Ghost)
+          const EnemyClass = enemy.constructor as new (
+            x: number,
+            y: number,
+          ) => Enemy;
+
+          // Instantiate 2 extra reinforcement clones of the same type
+          // We spawn them at the same position; they are hidden during overworld exploration anyway!
+          const reinforcement1 = new EnemyClass(enemy.pos.x, enemy.pos.y);
+          const reinforcement2 = new EnemyClass(enemy.pos.x, enemy.pos.y);
+
+          // Push them into the active scene registry so Excalibur tracks them
+          this.add(reinforcement1);
+          this.add(reinforcement2);
+
+          // Add them to our battle group array
+          enemyGroup.push(reinforcement1, reinforcement2);
+        }
+
+        // Trigger the battle scene with all 3 units!
+        this.startCombat(enemyGroup);
         break;
       }
     }
