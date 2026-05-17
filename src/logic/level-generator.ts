@@ -5,10 +5,11 @@ import { Ghost } from '../actors/ghost-enemy';
 import { Boss } from '../actors/boss';
 import { Resources } from '../resources';
 import { state } from '../state';
+import { DungeonBuilder } from './dungeon-builder';
 
 export class LevelGenerator {
   /**
-   * Generates a floor with a bounded grid layout and an exit stair actor.
+   * Generates a procedurally carved random room floor grid layout.
    */
   public static generateFloor(
     scene: ex.Scene,
@@ -18,59 +19,97 @@ export class LevelGenerator {
   ): Enemy[] {
     const enemies: Enemy[] = [];
 
-    // 1. Create the Floor Visuals
-    for (let x = 0; x < gridSize; x++) {
-      for (let y = 0; y < gridSize; y++) {
-        const floorTile = new ex.Actor({
-          pos: ex.vec(x * tileSize, y * tileSize),
-          width: tileSize,
-          height: tileSize,
-          z: -1, // Sits under everything
-        });
-        floorTile.graphics.use(Resources.FloorSprite.toSprite());
-        scene.add(floorTile);
+    // 1. Generate the logical 2D array grid layout matrix (0 = Wall, 1 = Floor)
+    const maxRooms = 8;
+    const grid = DungeonBuilder.generateGrid(gridSize, gridSize, maxRooms);
+
+    // Track valid open floor locations for spawning game entities
+    const openFloorTiles: ex.Vector[] = [];
+
+    // 2. Map the 2D procedural grid matrix out to Excalibur Actors
+    for (let y = 0; y < gridSize; y++) {
+      for (let x = 0; x < gridSize; x++) {
+        const worldX = x * tileSize;
+        const worldY = y * tileSize;
+
+        if (grid[y][x] === 0) {
+          // --- SPAWN A SOLID COLLIDABLE WALL ---
+          this.spawnWall(scene, x, y, tileSize);
+        } else {
+          // --- SPAWN A VISUAL FLOOR TILE ---
+          const floorTile = new ex.Actor({
+            pos: ex.vec(worldX, worldY),
+            width: tileSize,
+            height: tileSize,
+            z: -1, // Sits under everything else
+          });
+
+          if (
+            Resources.FloorSprite &&
+            typeof Resources.FloorSprite.toSprite === 'function'
+          ) {
+            floorTile.graphics.use(Resources.FloorSprite.toSprite());
+          }
+          scene.add(floorTile);
+
+          // Cache the grid coordinate vectors for safe entity distribution
+          openFloorTiles.push(ex.vec(x, y));
+        }
       }
     }
 
-    // --- 2. Generate Solid Map Bounding Walls ---
-    for (let i = -1; i <= gridSize; i++) {
-      // Top Wall row & Bottom Wall row
-      this.spawnWall(scene, i, -1, tileSize);
-      this.spawnWall(scene, i, gridSize, tileSize);
+    // Shuffle our floor collection options to ensure randomized unique allocations
+    openFloorTiles.sort(() => 0.5 - Math.random());
 
-      // Left Wall column & Right Wall column (skipping corners already handled)
-      if (i >= 0 && i < gridSize) {
-        this.spawnWall(scene, -1, i, tileSize);
-        this.spawnWall(scene, gridSize, i, tileSize);
-      }
+    if (openFloorTiles.length === 0) {
+      console.error(
+        'Critical Failure: No floor space carved by DungeonBuilder!',
+      );
+      return [];
     }
 
-    // --- 3. Spawn Exit Stairs (Force-Rendered) ---
-    const stairsGridX = Math.floor(Math.random() * (gridSize - 4)) + 2;
-    const stairsGridY = Math.floor(Math.random() * (gridSize - 4)) + 2;
+    // 3. Coordinate Player Spawn Anchor Location
+    // Pull the first open tile from our randomized deck to seat the Summoner
+    const playerGridPos = openFloorTiles.pop()!;
+    const player = scene.actors.find(
+      (a) => a.name === 'Summoner' || a.constructor.name === 'Summoner',
+    );
+    if (player) {
+      player.pos = ex.vec(
+        playerGridPos.x * tileSize,
+        playerGridPos.y * tileSize,
+      );
+      console.log(
+        `Player starting position anchored safely at: [${playerGridPos.x}, ${playerGridPos.y}]`,
+      );
+    }
+
+    // 4. Coordinate Exit Stairs Spawn Location
+    // Pull the next unique open tile to prevent overlapping any walls or player spawns
+    const stairsGridPos = openFloorTiles.pop()!;
+    const stairsGridX = stairsGridPos.x;
+    const stairsGridY = stairsGridPos.y;
 
     const stairs = new ex.Actor({
       pos: ex.vec(stairsGridX * tileSize, stairsGridY * tileSize),
       width: tileSize,
       height: tileSize,
       name: 'Stairs',
-      z: 99, // Set Z-index absurdly high so floor tiles CANNOT bury it
+      z: 99, // Set Z-index absurdly high so graphics layers cannot bury it
     });
 
-    // Explicitly double-check the graphic asset availability
     if (
       Resources.StairsSprite &&
       typeof Resources.StairsSprite.toSprite === 'function' &&
-      Resources.StairsSprite.isLoaded?.()
+      (typeof Resources.StairsSprite.isLoaded !== 'function' ||
+        Resources.StairsSprite.isLoaded())
     ) {
       stairs.graphics.use(Resources.StairsSprite.toSprite());
     } else {
-      // Unmistakable backup visual if your texture load has a silent error
       console.warn(
         `Stairs texture not available. Dropping high-contrast text fallback at [${stairsGridX}, ${stairsGridY}]`,
       );
-
-      stairs.color = ex.Color.Yellow; // Solid bright box anchor
+      stairs.color = ex.Color.Yellow;
 
       const textLabel = new ex.Label({
         text: 'EXIT',
@@ -81,7 +120,7 @@ export class LevelGenerator {
           bold: true,
           family: 'monospace',
         }),
-        pos: ex.vec(0, 6), // Center text vertically over the square anchor
+        pos: ex.vec(0, 6),
       });
       stairs.addChild(textLabel);
     }
@@ -95,7 +134,7 @@ export class LevelGenerator {
     const isBossFloor = state.currentFloor % 5 === 0;
 
     if (isBossFloor) {
-      // Instantiate the Boss directly on top of the exit stairs
+      // Place the Boss guardian directly protecting the room's stairs exit vector
       const boss = new Boss(stairsGridX * tileSize, stairsGridY * tileSize);
       scene.add(boss);
       enemies.push(boss);
@@ -108,27 +147,27 @@ export class LevelGenerator {
       count = Math.min(count, 2);
     }
 
-    // --- 4. Spawn Enemies (Fixed to use reliable while-loop structure) ---
+    // --- 5. Spawn Enemies strictly on remaining open floor tiles ---
     let enemiesSpawned = 0;
+    const maxAvailableEnemies = Math.min(count, openFloorTiles.length);
 
-    while (enemiesSpawned < count) {
-      const gridX = Math.floor(Math.random() * gridSize);
-      const gridY = Math.floor(Math.random() * gridSize);
+    while (enemiesSpawned < maxAvailableEnemies) {
+      // Safely pop a guaranteed unique floor coordinate space
+      const enemyGridPos = openFloorTiles.pop()!;
+      const gridX = enemyGridPos.x;
+      const gridY = enemyGridPos.y;
 
-      // If it lands in a restricted zone, re-roll immediately without incrementing counter
-      if (gridX < 2 && gridY < 2) continue;
-
-      // FIX: Absolute check to block regular enemies from overwriting stairs/boss coordinates
-      if (gridX === stairsGridX && gridY === stairsGridY) {
-        console.log(
-          `🛑 Blocked a minion from overlapping the exit stairs/boss tile at [${gridX}, ${gridY}]`,
-        );
+      // Skip the tile if it rests directly adjacent to the starting player location
+      if (
+        Math.abs(gridX - playerGridPos.x) <= 1 &&
+        Math.abs(gridY - playerGridPos.y) <= 1
+      ) {
         continue;
       }
 
       let enemy: Enemy;
 
-      // Roll a 30% random probability weight to decide monster type assignments
+      // Roll a 30% probability weight to handle monster variance assignments
       if (Math.random() < 0.3) {
         enemy = new Ghost(gridX * tileSize, gridY * tileSize);
         console.log(
@@ -141,7 +180,7 @@ export class LevelGenerator {
       scene.add(enemy);
       enemies.push(enemy);
 
-      enemiesSpawned++; // Only increments upon a successful placement
+      enemiesSpawned++;
     }
 
     return enemies;
@@ -160,10 +199,12 @@ export class LevelGenerator {
       pos: ex.vec(gridX * tileSize, gridY * tileSize),
       width: tileSize,
       height: tileSize,
-      color: ex.Color.fromHex('#222222'), // Dark gray visual block
+      color: ex.Color.fromHex('#222233'), // Dark navy-gray dungeon visual blocks
       z: 2,
-      collisionType: ex.CollisionType.Fixed, // Prevent player/enemies from walking through it
+      collisionType: ex.CollisionType.Fixed, // Block all overworld actors completely
     });
+
+    wall.name = 'Wall';
 
     if (
       Resources.WallSprite &&

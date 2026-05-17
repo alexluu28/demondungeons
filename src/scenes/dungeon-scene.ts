@@ -16,15 +16,16 @@ export class DungeonScene extends ex.Scene {
   private explorationHud!: ExplorationHUD;
   private enemies: Enemy[] = [];
   private isCombatActive: boolean = false;
-  private activeEncounterGroup: Enemy[] = []; // <-- Added to safely cache the active combatants
+  private activeEncounterGroup: Enemy[] = []; // Safely cache the active combatants
 
   onInitialize() {
-    // 1. World Generation
-    this.enemies = LevelGenerator.generateFloor(this, 12, 20, 64);
-
-    // 2. Player Setup
-    this.summoner = new Summoner(64, 64);
+    // 1. Player Setup (Instantiated first so the LevelGenerator can adjust its position)
+    this.summoner = new Summoner(0, 0);
+    this.summoner.name = 'Summoner';
     this.add(this.summoner);
+
+    // 2. World Generation (Grid layout handles player repositioning onto an open floor tile)
+    this.enemies = LevelGenerator.generateFloor(this, 12, 24, 64);
 
     // 3. UI Setup
     this.explorationHud = new ExplorationHUD();
@@ -35,7 +36,8 @@ export class DungeonScene extends ex.Scene {
     this.battleHud.onVictory = () => this.endCombat(this.activeEncounterGroup);
     this.add(this.battleHud);
 
-    // Camera Configuration
+    // Camera Configuration - Anchor frames onto the generated spawn location
+    this.camera.pos = this.summoner.pos;
     this.camera.strategy.lockToActor(this.summoner);
     this.camera.zoom = 1.5;
 
@@ -331,25 +333,24 @@ export class DungeonScene extends ex.Scene {
 
     actorsToRemove.forEach((actor) => this.remove(actor));
 
-    // 3. Procedurally build the next level grid configuration
-    const nextEnemies = LevelGenerator.generateFloor(this, 12, 20, 64);
+    // 3. Procedurally build the next level grid configuration (Using 24x24 for better room breathing room)
+    const nextEnemies = LevelGenerator.generateFloor(this, 12, 24, 64);
     this.enemies = nextEnemies;
     this.updateCurrentFloorEnemies(nextEnemies);
 
-    // 4. Reposition player character onto basic start space coordinates
+    // 4. Reposition player character visuals and inputs
     if (this.summoner) {
-      this.summoner.pos = ex.vec(192, 192);
       this.summoner.z = 10;
       this.summoner.graphics.visible = true;
       this.summoner.canMove = true;
+
+      // Force camera tracking mechanics to bind to the fresh procedural coordinates immediately
+      this.camera.pos = this.summoner.pos;
+      this.camera.strategy.lockToActor(this.summoner);
+      this.camera.zoom = 1.5;
     }
 
-    // 5. Anchor Camera frames
-    this.camera.pos = ex.vec(192, 192);
-    this.camera.strategy.lockToActor(this.summoner);
-    this.camera.zoom = 1.5;
-
-    // 6. Push current data values through to refresh tracking modules
+    // 5. Push current data values through to refresh tracking modules
     if (this.explorationHud) {
       this.explorationHud.graphics.visible = true;
       this.explorationHud.z = 100;
