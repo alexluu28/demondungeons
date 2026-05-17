@@ -6,6 +6,8 @@ export interface PartyMember {
   maxMp: number;
   skills: string[];
   weakness?: string;
+  attackPower: number; // <-- Added for card upgrade scaling
+  hasVampirism?: boolean; // <-- Added for rare trait modifiers
 }
 
 export class GameState {
@@ -14,6 +16,11 @@ export class GameState {
   // Global persistent variables
   public totalCoins: number = 0;
   public currentFloor: number = 1;
+
+  // --- NEW: Experience & Progression Tracking ---
+  public currentLevel: number = 1;
+  public currentXp: number = 0;
+  public xpNeededForLevelUp: number = 100; // Baseline milestone value
 
   // Your starting party setup
   public party: PartyMember[] = [
@@ -25,6 +32,7 @@ export class GameState {
       maxMp: 50,
       skills: ['Zio', 'Agi'],
       weakness: 'Dark',
+      attackPower: 15, // Base power
     },
     {
       name: 'JackFrost',
@@ -34,6 +42,7 @@ export class GameState {
       maxMp: 45,
       skills: ['Bufu', 'Mabufu'],
       weakness: 'Fire',
+      attackPower: 10, // Base power
     },
   ];
 
@@ -43,6 +52,25 @@ export class GameState {
       GameState._instance = new GameState();
     }
     return GameState._instance;
+  }
+
+  /**
+   * Safe data hook to add experience points to your party run.
+   * Returns true if a milestone cap is passed, indicating a Level Up event!
+   */
+  public gainXp(amount: number): boolean {
+    this.currentXp += amount;
+
+    if (this.currentXp >= this.xpNeededForLevelUp) {
+      this.currentXp -= this.xpNeededForLevelUp;
+      this.currentLevel++;
+
+      // Exponential scaling curve (e.g., each level requires 20% more XP than the last)
+      this.xpNeededForLevelUp = Math.floor(this.xpNeededForLevelUp * 1.2);
+      return true; // Flag true to let DungeonScene know it's time to open the 3-card draft modal
+    }
+
+    return false;
   }
 }
 

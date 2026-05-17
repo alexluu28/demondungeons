@@ -4,9 +4,226 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Smt Roguelike</title>
+  <style>
+    /* Prevent default page margins and center the game layout */
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: #0b0b12;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      overflow: hidden;
+    }
+
+    /* Bounded wrapper configuration anchoring HTML UI structures over the canvas */
+    #game-wrapper {
+      position: relative;
+      width: 800px;
+      height: 600px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
+      background-color: #000000;
+    }
+
+    /* Force canvas layer to map exactly to boundary dimensions */
+    #game {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    /* --- PERSISTENT EXPLORATION HTML HUD --- */
+    #exploration-html-hud {
+      position: absolute;
+      top: 15px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 90%;
+      max-width: 500px;
+      background: rgba(20, 20, 30, 0.75);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      padding: 10px 15px;
+      z-index: 999; /* Higher than canvas, below level-up screen */
+      box-sizing: border-box;
+      font-family: 'monospace', sans-serif;
+      color: #ffffff;
+    }
+
+    .hud-bar-container {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+    }
+
+    .level-badge {
+      font-weight: bold;
+      color: #ffd700;
+      background: rgba(255, 215, 0, 0.15);
+      border: 1px solid #ffd700;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 13px;
+      letter-spacing: 1px;
+      white-space: nowrap;
+    }
+
+    .xp-bar-track {
+      position: relative;
+      flex-grow: 1;
+      height: 20px;
+      background: #151520;
+      border: 1px solid #333344;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    /* Smooth linear scaling animation container */
+    #xp-bar-fill {
+      width: 0%; /* Driven dynamically by TypeScript hooks */
+      height: 100%;
+      background: linear-gradient(90deg, #00b4d8, #00f5d4);
+      box-shadow: 0 0 10px rgba(0, 245, 212, 0.5);
+      transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    #xp-bar-text {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 11px;
+      font-weight: bold;
+      color: #ffffff;
+      text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8);
+      pointer-events: none;
+    }
+
+    /* --- THE INTERACTIVE LEVEL-UP OVERLAY SCREEN --- */
+    #level-up-overlay {
+      display: none; /* Injected flex toggle via TS manager files */
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(10, 10, 15, 0.9);
+      font-family: 'monospace', sans-serif;
+      color: #ffffff;
+      z-index: 9999; /* Highest priority visual layout anchor */
+      align-items: center;
+      justify-content: center;
+      box-sizing: border-box;
+    }
+
+    .draft-container {
+      text-align: center;
+      width: 90%;
+    }
+
+    .draft-headline {
+      font-size: 28px;
+      color: #ffd700;
+      margin: 0 0 5px 0;
+      text-shadow: 0 0 10px rgba(255, 215, 0, 0.4);
+      letter-spacing: 2px;
+    }
+
+    .draft-subline {
+      font-size: 14px;
+      color: #aaaaaa;
+      margin: 0 0 30px 0;
+    }
+
+    #cards-row {
+      display: flex;
+      gap: 20px;
+      justify-content: center;
+    }
+
+    /* Custom layout formatting structures for card elements */
+    .upgrade-card {
+      background: linear-gradient(135deg, #1e1e2f, #12121a);
+      border: 2px solid #444466;
+      border-radius: 10px;
+      width: 200px;
+      padding: 20px;
+      cursor: pointer;
+      box-sizing: border-box;
+      transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      min-height: 260px;
+      text-align: left;
+    }
+
+    .upgrade-card:hover {
+      transform: translateY(-8px);
+      border-color: #ffd700;
+      box-shadow: 0 10px 20px rgba(255, 215, 0, 0.2);
+    }
+
+    .card-title {
+      font-size: 16px;
+      font-weight: bold;
+      margin-bottom: 12px;
+      color: #ffffff;
+    }
+
+    .card-description {
+      font-size: 12px;
+      color: #cccccc;
+      line-height: 1.5;
+      flex-grow: 1;
+    }
+
+    .card-rarity {
+      font-size: 10px;
+      text-transform: uppercase;
+      font-weight: bold;
+      letter-spacing: 1px;
+      margin-top: 15px;
+      padding: 3px 8px;
+      border-radius: 4px;
+      background: rgba(255, 255, 255, 0.1);
+      align-self: flex-start;
+    }
+
+    .rarity-common { color: #8888aa; }
+    .rarity-rare { color: #3a86ff; text-shadow: 0 0 5px rgba(58, 134, 255, 0.4); }
+    .rarity-epic { color: #ff006e; text-shadow: 0 0 5px rgba(255, 0, 110, 0.4); }
+  </style>
 </head>
 <body>
-<canvas id="game"></canvas>
+
+<div id="game-wrapper">
+  <canvas id="game"></canvas>
+
+  <div id="exploration-html-hud">
+    <div class="hud-bar-container">
+      <div class="level-badge">LVL <span id="hud-level-text">1</span></div>
+      <div class="xp-bar-track">
+        <div id="xp-bar-fill"></div>
+        <span id="xp-bar-text">0 / 100 XP</span>
+      </div>
+    </div>
+  </div>
+
+  <div id="level-up-overlay">
+    <div class="draft-container">
+      <h2 class="draft-headline">✨ LEVEL UP! ✨</h2>
+      <p class="draft-subline">Select an upgrade card to reinforce your party members</p>
+
+      <div id="cards-row">
+      </div>
+    </div>
+  </div>
+</div>
+
 <script type="module" src="/src/main.ts"></script>
 </body>
 </html>
