@@ -5,7 +5,7 @@ import { Coin } from '../actors/coin';
 import { LevelGenerator } from '../logic/level-generator';
 import { BattleHUD } from '../ui/battle-hud';
 import { ExplorationHUD } from '../ui/exploration-hud';
-import { game, Resources } from '../resources';
+import { Resources } from '../resources';
 import { state } from '../state';
 
 export class DungeonScene extends ex.Scene {
@@ -16,7 +16,6 @@ export class DungeonScene extends ex.Scene {
   private enemies: Enemy[] = [];
   private totalCoins: number = 0;
   private isCombatActive: boolean = false;
-  private stairsSpawned: boolean = false;
 
   onInitialize() {
     // 1. World Generation
@@ -38,7 +37,7 @@ export class DungeonScene extends ex.Scene {
     this.camera.strategy.lockToActor(this.summoner);
     this.camera.zoom = 1.5;
 
-    //collision for summoner
+    // Set up permanent collision monitoring for advancing floors via stairs
     this.initStairsCollision(this.summoner);
   }
 
@@ -59,14 +58,12 @@ export class DungeonScene extends ex.Scene {
     });
 
     this.battleHud.updateEnemyList(enemyGroup);
-
     this.battleHud.updatePlayerParty(state.party);
-
     this.battleHud.setVisible(true);
   }
 
   /**
-   * Cleans up combat, drops loot, and handles floor progression.
+   * Cleans up combat, drops loot, and manages post-encounter floor checks.
    */
   public endCombat() {
     this.isCombatActive = false;
@@ -97,61 +94,25 @@ export class DungeonScene extends ex.Scene {
     });
 
     this.summoner.canMove = true;
+    console.log('Combat resolved. The path forward is clear.');
 
-    // 4. Progression: Spawn stairs if all enemies on the floor are defeated
-    const remainingEnemies = this.enemies.filter((e) => !e.isKilled()).length;
-    if (remainingEnemies === 0 && !this.stairsSpawned) {
-      this.spawnStairs();
-    }
-  }
+    // --- FIX: Force an immediate escape check if standing on the stairs post-boss ---
+    const stairsActor = this.actors.find((actor) => actor.name === 'Stairs');
 
-  private spawnStairs() {
-    if (this.stairsSpawned) return;
-    this.stairsSpawned = true;
+    if (stairsActor && this.summoner) {
+      const distanceToStairs = this.summoner.pos.distance(stairsActor.pos);
 
-    // 1. Calculate a random tile position
-    // Assuming a 20x20 grid and 64px tile size
-    const gridWidth = 20;
-    const gridHeight = 20;
-    const tileSize = 64;
+      // If player is overlapping the stairs coordinates directly where the boss died
+      if (distanceToStairs < 40) {
+        console.log(
+          '👑 Guardian defeated while on exit tile! Autoloading next floor...',
+        );
 
-    const randomX =
-      Math.floor(Math.random() * gridWidth) * tileSize + tileSize / 2;
-    const randomY =
-      Math.floor(Math.random() * gridHeight) * tileSize + tileSize / 2;
+        if (Resources.BlipSound.isLoaded()) Resources.BlipSound.play(0.2);
 
-    const stairs = new ex.Actor({
-      pos: ex.vec(randomX, randomY),
-      width: tileSize,
-      height: tileSize,
-      color: ex.Color.Green,
-      collisionType: ex.CollisionType.Passive,
-      z: -1, // Set slightly behind the player but above the floor
-    });
-
-    // 2. Add Label
-    const label = new ex.Label({
-      text: 'STAIRS',
-      pos: ex.vec(0, -40),
-      font: new ex.Font({
-        size: 20,
-        color: ex.Color.White,
-        family: 'monospace',
-        textAlign: ex.TextAlign.Center,
-      }),
-    });
-    stairs.addChild(label);
-
-    // 3. Collision Logic
-    stairs.on('precollision', (evt) => {
-      if (evt.other.owner === this.summoner) {
-        console.log('Advancing to next floor via random exit!');
-        game.goToScene('shop');
+        this.nextFloorSequence();
       }
-    });
-
-    this.add(stairs);
-    console.log(`Stairs spawned at: ${randomX}, ${randomY}`);
+    }
   }
 
   onPreUpdate() {
@@ -178,19 +139,36 @@ export class DungeonScene extends ex.Scene {
     });
   }
 
+  /**
+   * Sets up collision events for interacting with the pre-rendered floor exit stairs.
+   */
   private initStairsCollision(summoner: ex.Actor) {
     summoner.on('collisionstart', (evt) => {
-      // Check if the thing we ran into is named 'Stairs'
+      // Check if the entity run into is the procedural 'Stairs' actor
       if (evt.other.owner && evt.other.owner.name === 'Stairs') {
-        console.log('Stairs triggered! Moving to the next floor...');
+        // Check if there is an active, undefeated Boss on this floor
+        const bossIsAlive = this.enemies.some(
+          (enemy) => enemy.enemyName === 'Boss' && !enemy.isKilled(),
+        );
 
-        // 1. Advance your persistent global floor counter
-        state.currentFloor++;
+        if (bossIsAlive) {
+          console.log('🔒 The exit stairs are sealed by the Boss guardian!');
 
-        // 2. Play a quick visual transition or audio effect
+          // Optional visual/audio feedback for the player
+          if (Resources.ErrorSound?.isLoaded()) {
+            Resources.ErrorSound.play(0.2);
+          }
+          return; // STOP the sequence here—do not advance to the next floor!
+        }
+
+        console.log(
+          'Stairs triggered! Initiating floor transition sequence...',
+        );
+
+        // Play a quick visual transition or audio effect
         if (Resources.BlipSound.isLoaded()) Resources.BlipSound.play(0.2);
 
-        // 3. Clear the current floor map and reload a brand new one!
+        // Clear the old floor mapping and construct the new level grid
         this.nextFloorSequence();
       }
     });
@@ -203,37 +181,40 @@ export class DungeonScene extends ex.Scene {
     );
   }
 
+  /**
+   * Sweeps old floor actors out of memory and runs the generator to spin up the next map.
+   */
   private nextFloorSequence() {
-    // 1. Reset the flag so stairs can spawn on the new floor
-    this.stairsSpawned = false;
+    // 1. CRITICAL CONTEXT SYNC: Increment your global floor index BEFORE building the next layout!
+    state.currentFloor++;
 
-    // 2. FIX: Protect the HUD actors AND any child entities attached to them!
+    // 2. Clear out actors from the scene while protecting player and HUD assets
     const actorsToRemove = this.actors.filter((actor) => {
       // Keep the player character
       if (actor === this.summoner || actor.name === 'Summoner') return false;
 
-      // Keep the HUD frameworks themselves
+      // Keep the core HUD systems
       if (actor instanceof BattleHUD || actor instanceof ExplorationHUD)
         return false;
 
-      // Keep any child elements attached inside the HUD objects (protects your labels!)
+      // Keep child sub-nodes attached to HUDs (protects nested text labels from sweeping)
       if (this.explorationHud && this.explorationHud.children.includes(actor))
         return false;
       if (this.battleHud && this.battleHud.children.includes(actor))
         return false;
 
-      return true; // Safe to clear away everything else (enemies, items, old stairs)
+      return true; // Safely purge slimes, ghosts, items, and walls
     });
 
-    // Purge the cleared elements
+    // Remove the gathered old floor actors from active memory
     actorsToRemove.forEach((actor) => this.remove(actor));
 
-    // 3. Re-run your generator to procedurally build the next layout
+    // 3. Re-run your generator to procedurally build the next level grid
     const nextEnemies = LevelGenerator.generateFloor(this, 12, 20, 64);
     this.enemies = nextEnemies;
     this.updateCurrentFloorEnemies(nextEnemies);
 
-    // 4. Place player in walkable zone
+    // 4. Place player character in an open starting tile space
     if (this.summoner) {
       this.summoner.pos = ex.vec(192, 192);
       this.summoner.z = 10;
@@ -241,16 +222,16 @@ export class DungeonScene extends ex.Scene {
       this.summoner.canMove = true;
     }
 
-    // 5. Reset camera target
+    // 5. Reset Camera bounds
     this.camera.pos = ex.vec(192, 192);
     this.camera.strategy.lockToActor(this.summoner);
     this.camera.zoom = 1.5;
 
-    // 6. Force text blocks to sync with fresh layout parameters
+    // 6. Force text boxes and tracking UI layers to sync with fresh room indices
     if (this.explorationHud) {
       this.explorationHud.graphics.visible = true;
       this.explorationHud.z = 100;
-      this.explorationHud.updateCoins(state.totalCoins);
+      this.explorationHud.updateCoins(this.totalCoins);
       this.explorationHud.updateFloor(state.currentFloor);
     }
 

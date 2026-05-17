@@ -30,3 +30,6 @@ public/sprites/*.jpg
 public/sprites/*.jpeg
 public/sprites/*.json
 public/sprites/*.atlas
+
+# sound ignore
+public/sounds/*.wav

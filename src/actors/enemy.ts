@@ -45,6 +45,20 @@ export class Enemy extends ex.Actor {
   }
 
   /**
+   * Base attack execution method for all monsters.
+   * Subclasses (like Boss) can override this to execute high-impact mechanics.
+   * * @param summoner The target player actor instance to damage
+   */
+  public attack(summoner: any) {
+    console.log(`${this.enemyName} lunges forward to attack!`);
+
+    // Fallback duck-typing check to safely apply damage to the player asset
+    if (summoner && typeof summoner.takeDamage === 'function') {
+      summoner.takeDamage(this.stats.str);
+    }
+  }
+
+  /**
    * Processes damage and applies the 2x Weakness multiplier.
    */
   public takeDamage(baseDamage: number, type: Element) {
