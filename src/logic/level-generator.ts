@@ -3,16 +3,9 @@ import { Slime } from '../actors/slime-enemy';
 import { Enemy } from '../actors/enemy';
 import { Resources } from '../resources';
 
-// If you created a Ghost class as well:
-// import { Ghost } from '../actors/ghost-enemy';
-
 export class LevelGenerator {
   /**
-   * Generates a floor with a grid-based layout.
-   * @param scene The current DungeonScene
-   * @param count Number of enemies to spawn
-   * @param gridSize The dimension of the floor (e.g., 20x20 tiles)
-   * @param tileSize The size of each tile (e.g., 64px)
+   * Generates a floor with a bounded grid layout and an exit stair actor.
    */
   public static generateFloor(
     scene: ex.Scene,
@@ -23,44 +16,114 @@ export class LevelGenerator {
     const enemies: Enemy[] = [];
 
     // 1. Create the Floor Visuals
-    // We create a large tiled background so the world isn't empty space
     for (let x = 0; x < gridSize; x++) {
       for (let y = 0; y < gridSize; y++) {
         const floorTile = new ex.Actor({
           pos: ex.vec(x * tileSize, y * tileSize),
           width: tileSize,
           height: tileSize,
-          z: -1, // Keep floor behind everything
+          z: -1, // Sits under everything
         });
         floorTile.graphics.use(Resources.FloorSprite.toSprite());
         scene.add(floorTile);
       }
     }
 
-    // 2. Spawn Enemies on Grid Intersections
+    // --- NEW: 2. Generate Solid Map Bounding Walls ---
+    // We loop around the perimeter of the grid (-1 and gridSize boundaries)
+    for (let i = -1; i <= gridSize; i++) {
+      // Top Wall row & Bottom Wall row
+      this.spawnWall(scene, i, -1, tileSize);
+      this.spawnWall(scene, i, gridSize, tileSize);
+
+      // Left Wall column & Right Wall column (skipping corners already handled)
+      if (i >= 0 && i < gridSize) {
+        this.spawnWall(scene, -1, i, tileSize);
+        this.spawnWall(scene, gridSize, i, tileSize);
+      }
+    }
+
+    // 3. Spawn Exit Stairs (Guaranteed inside the boundaries)
+// --- 3. Spawn Exit Stairs (Force-Rendered) ---
+    const stairsGridX = Math.floor(Math.random() * (gridSize - 4)) + 2;
+    const stairsGridY = Math.floor(Math.random() * (gridSize - 4)) + 2;
+
+    const stairs = new ex.Actor({
+      pos: ex.vec(stairsGridX * tileSize, stairsGridY * tileSize),
+      width: tileSize,
+      height: tileSize,
+      name: 'Stairs',
+      z: 99, // FIX 1: Set Z-index absurdly high so floor tiles CANNOT bury it
+    });
+
+    // FIX 2: Explicitly double-check the graphic asset availability
+    if (Resources.StairsSprite && typeof Resources.StairsSprite.toSprite === 'function' && Resources.StairsSprite.isLoaded?.()) {
+      stairs.graphics.use(Resources.StairsSprite.toSprite());
+    } else {
+      // FIX 3: Unmistakable backup visual if your texture load has a silent error
+      console.warn(`Stairs texture not available. Dropping high-contrast text fallback at [${stairsGridX}, ${stairsGridY}]`);
+
+      stairs.color = ex.Color.Yellow; // Solid bright box anchor
+
+      const textLabel = new ex.Label({
+        text: 'EXIT',
+        font: new ex.Font({
+          size: 16,
+          color: ex.Color.Black,
+          textAlign: ex.TextAlign.Center,
+          bold: true,
+          family: 'monospace'
+        }),
+        pos: ex.vec(0, 6) // Center text vertically over the square anchor
+      });
+      stairs.addChild(textLabel);
+    }
+
+    scene.add(stairs);
+    console.log(`Exit stairs successfully spawned at grid position: [${stairsGridX}, ${stairsGridY}]`);
+
+    // 4. Spawn Enemies
     for (let i = 0; i < count; i++) {
-      // Random grid coordinates
       const gridX = Math.floor(Math.random() * gridSize);
       const gridY = Math.floor(Math.random() * gridSize);
 
-      const worldX = gridX * tileSize;
-      const worldY = gridY * tileSize;
-
-      // Prevent spawning at the starting position (0,0)
       if (gridX < 2 && gridY < 2) continue;
+      if (gridX === stairsGridX && gridY === stairsGridY) continue;
 
-      // Randomly choose between enemy types to test weaknesses
-      // If you haven't made Ghost yet, you can just use new Slime() for both
-      const enemy =
-        Math.random() > 0.5
-          ? new Slime(worldX, worldY)
-          : new Slime(worldX, worldY); // Replace with Ghost once created
-
+      const enemy = new Slime(gridX * tileSize, gridY * tileSize);
       scene.add(enemy);
       enemies.push(enemy);
     }
 
-    console.log(`Floor generated with ${enemies.length} entities.`);
     return enemies;
+  }
+
+  /**
+   * Helper method to generate a solid wall block with collision enabled
+   */
+  private static spawnWall(
+    scene: ex.Scene,
+    gridX: number,
+    gridY: number,
+    tileSize: number,
+  ) {
+    const wall = new ex.Actor({
+      pos: ex.vec(gridX * tileSize, gridY * tileSize),
+      width: tileSize,
+      height: tileSize,
+      color: ex.Color.fromHex('#222222'), // Dark gray visual block
+      z: 2,
+      collisionType: ex.CollisionType.Fixed, // Prevent player/enemies from walking through it
+    });
+
+    // Optional: Use an asset if you have a WallSprite defined
+    if (
+      Resources.WallSprite &&
+      typeof Resources.WallSprite.toSprite === 'function'
+    ) {
+      wall.graphics.use(Resources.WallSprite.toSprite());
+    }
+
+    scene.add(wall);
   }
 }

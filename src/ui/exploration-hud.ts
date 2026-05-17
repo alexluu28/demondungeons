@@ -51,14 +51,14 @@ export class ExplorationHUD extends ex.ScreenElement {
       this.minimapSize,
       ex.Color.fromHex('#000000AA'),
     );
-// Replace the old line with this:
+
     ctx.drawRectangle(
       ex.vec(this.mapX, this.mapY),
       this.minimapSize,
       this.minimapSize,
       ex.Color.White,
-      ex.Color.Transparent, // No fill color for the border call
-      1 // Just pass the number 1 for the thickness/stroke width
+      ex.Color.Transparent,
+      1,
     );
 
     // 2. Iterate through all actors in the current scene to draw dots
@@ -71,13 +71,13 @@ export class ExplorationHUD extends ex.ScreenElement {
           dotColor = ex.Color.Cyan;
         } else if (entity instanceof Enemy && !entity.isKilled()) {
           dotColor = ex.Color.Red;
-        } else if (entity.name === 'STAIRS') {
+        } else if (entity.name === 'Stairs') {
+          // FIX: Case-matched to your active string descriptor
           dotColor = ex.Color.Green;
         }
 
         if (dotColor) {
           // Map world coordinates (0-1280) to minimap coordinates (0-120)
-          // 20 tiles * 64px = 1280px total world size
           const worldSize = 20 * 64;
           const relX = (entity.pos.x / worldSize) * this.minimapSize;
           const relY = (entity.pos.y / worldSize) * this.minimapSize;
@@ -95,5 +95,12 @@ export class ExplorationHUD extends ex.ScreenElement {
   public updateCoins(amount: number) {
     this.coins = amount;
     this.coinLabel.text = `COINS: ${this.coins}`;
+  }
+
+  // FIX: ADD THIS METHOD TO FORCE TEXT GRAPHICS REDRAW ON STAIR CONTACT
+  public updateFloor(floorNum: number) {
+    if (this.floorLabel) {
+      this.floorLabel.text = `FLOOR: ${floorNum}`;
+    }
   }
 }

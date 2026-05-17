@@ -5,10 +5,11 @@ import { Coin } from '../actors/coin';
 import { LevelGenerator } from '../logic/level-generator';
 import { BattleHUD } from '../ui/battle-hud';
 import { ExplorationHUD } from '../ui/exploration-hud';
-import { game } from '../resources';
+import { game, Resources } from '../resources';
 import { state } from '../state';
 
 export class DungeonScene extends ex.Scene {
+  private currentFloorEnemies: Enemy[] = [];
   private summoner!: Summoner;
   private battleHud!: BattleHUD;
   private explorationHud!: ExplorationHUD;
@@ -36,6 +37,9 @@ export class DungeonScene extends ex.Scene {
     // Camera Configuration
     this.camera.strategy.lockToActor(this.summoner);
     this.camera.zoom = 1.5;
+
+    //collision for summoner
+    this.initStairsCollision(this.summoner);
   }
 
   /**
@@ -172,5 +176,84 @@ export class DungeonScene extends ex.Scene {
         this.explorationHud.updateCoins(this.totalCoins);
       }
     });
+  }
+
+  private initStairsCollision(summoner: ex.Actor) {
+    summoner.on('collisionstart', (evt) => {
+      // Check if the thing we ran into is named 'Stairs'
+      if (evt.other.owner && evt.other.owner.name === 'Stairs') {
+        console.log('Stairs triggered! Moving to the next floor...');
+
+        // 1. Advance your persistent global floor counter
+        state.currentFloor++;
+
+        // 2. Play a quick visual transition or audio effect
+        if (Resources.BlipSound.isLoaded()) Resources.BlipSound.play(0.2);
+
+        // 3. Clear the current floor map and reload a brand new one!
+        this.nextFloorSequence();
+      }
+    });
+  }
+
+  public updateCurrentFloorEnemies(enemies: Enemy[]) {
+    this.currentFloorEnemies = enemies;
+    console.log(
+      `Dungeon tracking updated: ${this.currentFloorEnemies.length} active targets.`,
+    );
+  }
+
+  private nextFloorSequence() {
+    // 1. Reset the flag so stairs can spawn on the new floor
+    this.stairsSpawned = false;
+
+    // 2. FIX: Protect the HUD actors AND any child entities attached to them!
+    const actorsToRemove = this.actors.filter((actor) => {
+      // Keep the player character
+      if (actor === this.summoner || actor.name === 'Summoner') return false;
+
+      // Keep the HUD frameworks themselves
+      if (actor instanceof BattleHUD || actor instanceof ExplorationHUD)
+        return false;
+
+      // Keep any child elements attached inside the HUD objects (protects your labels!)
+      if (this.explorationHud && this.explorationHud.children.includes(actor))
+        return false;
+      if (this.battleHud && this.battleHud.children.includes(actor))
+        return false;
+
+      return true; // Safe to clear away everything else (enemies, items, old stairs)
+    });
+
+    // Purge the cleared elements
+    actorsToRemove.forEach((actor) => this.remove(actor));
+
+    // 3. Re-run your generator to procedurally build the next layout
+    const nextEnemies = LevelGenerator.generateFloor(this, 12, 20, 64);
+    this.enemies = nextEnemies;
+    this.updateCurrentFloorEnemies(nextEnemies);
+
+    // 4. Place player in walkable zone
+    if (this.summoner) {
+      this.summoner.pos = ex.vec(192, 192);
+      this.summoner.z = 10;
+      this.summoner.graphics.visible = true;
+      this.summoner.canMove = true;
+    }
+
+    // 5. Reset camera target
+    this.camera.pos = ex.vec(192, 192);
+    this.camera.strategy.lockToActor(this.summoner);
+    this.camera.zoom = 1.5;
+
+    // 6. Force text blocks to sync with fresh layout parameters
+    if (this.explorationHud) {
+      this.explorationHud.graphics.visible = true;
+      this.explorationHud.z = 100;
+      this.explorationHud.updateCoins(state.totalCoins);
+      this.explorationHud.updateFloor(state.currentFloor);
+    }
+
+    console.log(`Floor B${state.currentFloor} initialized successfully!`);
   }
 }
