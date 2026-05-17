@@ -34,6 +34,7 @@ export const Resources = {
   CoinSound: new ex.Sound('sounds/coin.wav'),
   BuySound: new ex.Sound('sounds/buy.wav'),
   BlipSound: new ex.Sound('sounds/blip.wav'),
+  ErrorSound: new ex.Sound('./sounds/error.wav'),
 
   // Music
   DungeonMusic: new ex.Sound('sounds/dungeon_theme.mp3'),

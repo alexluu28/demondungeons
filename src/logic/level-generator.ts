@@ -2,7 +2,9 @@ import * as ex from 'excalibur';
 import { Slime } from '../actors/slime-enemy';
 import { Enemy } from '../actors/enemy';
 import { Ghost } from '../actors/ghost-enemy';
+import { Boss } from '../actors/boss';
 import { Resources } from '../resources';
+import { state } from '../state';
 
 export class LevelGenerator {
   /**
@@ -89,6 +91,23 @@ export class LevelGenerator {
       `Exit stairs successfully spawned at grid position: [${stairsGridX}, ${stairsGridY}]`,
     );
 
+    // --- Milestone Boss Floor Spawning (Every 5th Floor) ---
+    const isBossFloor = state.currentFloor % 5 === 0;
+
+    if (isBossFloor) {
+      // Instantiate the Boss directly on top of the exit stairs
+      const boss = new Boss(stairsGridX * tileSize, stairsGridY * tileSize);
+      scene.add(boss);
+      enemies.push(boss);
+
+      console.log(
+        `⚠️ BOSS ENCOUNTER! Giant guardian spawned at grid: [${stairsGridX}, ${stairsGridY}]`,
+      );
+
+      // Reduce standard enemy count to avoid crowding the boss arena layout
+      count = Math.min(count, 2);
+    }
+
     // --- 4. Spawn Enemies (Fixed to use reliable while-loop structure) ---
     let enemiesSpawned = 0;
 
@@ -98,7 +117,14 @@ export class LevelGenerator {
 
       // If it lands in a restricted zone, re-roll immediately without incrementing counter
       if (gridX < 2 && gridY < 2) continue;
-      if (gridX === stairsGridX && gridY === stairsGridY) continue;
+
+      // FIX: Absolute check to block regular enemies from overwriting stairs/boss coordinates
+      if (gridX === stairsGridX && gridY === stairsGridY) {
+        console.log(
+          `🛑 Blocked a minion from overlapping the exit stairs/boss tile at [${gridX}, ${gridY}]`,
+        );
+        continue;
+      }
 
       let enemy: Enemy;
 
