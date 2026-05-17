@@ -7,6 +7,7 @@ import { BattleHUD } from '../ui/battle-hud';
 import { ExplorationHUD } from '../ui/exploration-hud';
 import { Resources } from '../resources';
 import { state } from '../state';
+import { generateThreeDraftCards, UpgradeCard } from '../logic/upgrades';
 
 export class DungeonScene extends ex.Scene {
   private currentFloorEnemies: Enemy[] = [];
@@ -14,8 +15,8 @@ export class DungeonScene extends ex.Scene {
   private battleHud!: BattleHUD;
   private explorationHud!: ExplorationHUD;
   private enemies: Enemy[] = [];
-  private totalCoins: number = 0;
   private isCombatActive: boolean = false;
+  private activeEncounterGroup: Enemy[] = []; // <-- Added to safely cache the active combatants
 
   onInitialize() {
     // 1. World Generation
@@ -30,7 +31,8 @@ export class DungeonScene extends ex.Scene {
     this.add(this.explorationHud);
 
     this.battleHud = new BattleHUD();
-    this.battleHud.onVictory = () => this.endCombat();
+    // Pass the cached encounter squad back to resolution safely on victory
+    this.battleHud.onVictory = () => this.endCombat(this.activeEncounterGroup);
     this.add(this.battleHud);
 
     // Camera Configuration
@@ -48,9 +50,14 @@ export class DungeonScene extends ex.Scene {
     if (this.isCombatActive) return;
     this.isCombatActive = true;
     this.summoner.canMove = false;
+    this.activeEncounterGroup = enemyGroup; // Cache the current active squad parameters
 
-    // Hide world visuals and Exploration UI
+    // Hide world visuals, Excalibur HUD, and persistent HTML exploration HUD
     this.explorationHud.graphics.visible = false;
+
+    const htmlHud = document.getElementById('exploration-html-hud');
+    if (htmlHud) htmlHud.style.display = 'none';
+
     this.entities.forEach((entity) => {
       if (entity instanceof ex.Actor && !(entity instanceof BattleHUD)) {
         entity.graphics.visible = false;
@@ -64,32 +71,36 @@ export class DungeonScene extends ex.Scene {
 
   /**
    * Cleans up combat, drops loot, and manages post-encounter floor checks.
+   * Decoupled from actor engine filters to prevent zero-XP assessment errors.
    */
-  /**
-   * Cleans up combat, drops loot, and manages post-encounter floor checks.
-   */
-  public endCombat() {
+  public endCombat(defeatedGroup?: Enemy[]) {
     this.isCombatActive = false;
     this.explorationHud.graphics.visible = true;
 
-    // 1. FIX: Sweep all killed enemies currently residing in the scene for loot drops
-    this.actors.forEach((actor) => {
-      if (
-        actor instanceof Enemy &&
-        actor.isKilled() &&
-        actor.graphics.visible === false
-      ) {
-        const loot = new Coin(actor.pos.x, actor.pos.y);
-        this.add(loot);
-        loot.graphics.visible = true;
-      }
-    });
+    // Fallback safely to a default group size of 3 units if array layer mapping drops context
+    const enemiesDefeated =
+      defeatedGroup && defeatedGroup.length > 0 ? defeatedGroup.length : 3;
+    console.log(
+      `Combat resolved. Processing rewards for ${enemiesDefeated} squad elements.`,
+    );
+
+    // 1. Drop loot tokens dynamically at your character location space coordinates
+    for (let i = 0; i < enemiesDefeated; i++) {
+      const offsetX = (Math.random() - 0.5) * 20;
+      const offsetY = (Math.random() - 0.5) * 20;
+      const loot = new Coin(
+        this.summoner.pos.x + offsetX,
+        this.summoner.pos.y + offsetY,
+      );
+      this.add(loot);
+      loot.graphics.visible = true;
+    }
 
     // 2. Battle UI Cleanup
     this.battleHud.updateEnemyList([]);
     this.battleHud.setVisible(false);
 
-    // 3. Restore Visibility to survivors in the world
+    // 3. Restore Visibility to overworld survivors
     this.entities.forEach((entity) => {
       if (
         entity instanceof ex.Actor &&
@@ -100,21 +111,119 @@ export class DungeonScene extends ex.Scene {
       }
     });
 
-    this.summoner.canMove = true;
-    console.log('Combat resolved. The path forward is clear.');
+    // --- Experience Calculations ---
+    const xpEarned = enemiesDefeated * 35; // 35 XP per unit slayed in group encounters
+    console.log(
+      `Earned ${xpEarned} XP from battle resolutions. Total Enemies: ${enemiesDefeated}`,
+    );
 
-    // --- Force an immediate escape check if standing on the stairs post-boss ---
+    const didLevelUp = state.gainXp(xpEarned);
+
+    // Synchronize the fresh stats out to the custom HTML bar tracking layout
+    this.explorationHud.updateXpBar(state.currentXp, state.xpNeededForLevelUp);
+
+    if (didLevelUp) {
+      console.log(
+        `✨ LEVEL UP! Reached level ${state.currentLevel}! Opening Draft Options...`,
+      );
+      this.summoner.canMove = false; // Freeze player movement
+
+      // Open the dynamic level-up selection screen
+      this.showLevelUpDraftOverlay();
+      return; // Hold progression checks until draft selection clears
+    }
+
+    // Restore persistent exploration HTML layer if no level up intercepted control
+    const htmlHud = document.getElementById('exploration-html-hud');
+    if (htmlHud) htmlHud.style.display = 'block';
+
+    this.summoner.canMove = true;
+
+    // Reset tracking cache allocation space
+    this.activeEncounterGroup = [];
+
+    // Room exit collision fallback verification
     const stairsActor = this.actors.find((actor) => actor.name === 'Stairs');
     if (stairsActor && this.summoner) {
       const distanceToStairs = this.summoner.pos.distance(stairsActor.pos);
       if (distanceToStairs < 40) {
-        console.log(
-          '👑 Guardian defeated while on exit tile! Autoloading next floor...',
-        );
         if (Resources.BlipSound.isLoaded()) Resources.BlipSound.play(0.2);
         this.nextFloorSequence();
       }
     }
+  }
+
+  /**
+   * Generates and renders the 3 random HTML card choices directly over the canvas container.
+   */
+  private showLevelUpDraftOverlay() {
+    const overlay = document.getElementById('level-up-overlay');
+    const cardsRow = document.getElementById('cards-row');
+    if (!overlay || !cardsRow) return;
+
+    // Clear previous draft elements out of the container
+    cardsRow.innerHTML = '';
+
+    // Generate 3 unique reward item cards from the logic pool
+    const options = generateThreeDraftCards();
+
+    // Map and inject modern responsive DOM card nodes
+    options.forEach((card: UpgradeCard) => {
+      const cardElement = document.createElement('div');
+      cardElement.className = 'upgrade-card';
+
+      cardElement.innerHTML = `
+        <div class="card-title">${card.title}</div>
+        <div class="card-description">${card.description}</div>
+        <div class="card-rarity rarity-${card.rarity.toLowerCase()}">${card.rarity}</div>
+      `;
+
+      // Set up click interactions to process upgrades and clean up the overlay
+      cardElement.onclick = () => {
+        console.log(`Selected Reward Card: ${card.title}`);
+
+        // Apply modification functions directly on targeted parameters
+        card.applyReward();
+
+        // Dismiss the overlay layout frame
+        overlay.style.display = 'none';
+
+        // Re-display exploration overlay HUD layouts and force metrics redraw
+        const htmlHud = document.getElementById('exploration-html-hud');
+        if (htmlHud) htmlHud.style.display = 'block';
+
+        if (this.explorationHud) {
+          this.explorationHud.updateCoins(state.totalCoins); // Read from synchronized global state
+          this.explorationHud.updateFloor(state.currentFloor);
+          this.explorationHud.updateXpBar(
+            state.currentXp,
+            state.xpNeededForLevelUp,
+          );
+        }
+
+        // Unfreeze player inputs
+        this.summoner.canMove = true;
+        this.activeEncounterGroup = []; // Clear current group cache safely
+        console.log('Reward applied smoothly. Exploration controls restored.');
+
+        // Re-evaluate immediate escape vectors in case player completed battle directly on stairs
+        const stairsActor = this.actors.find(
+          (actor) => actor.name === 'Stairs',
+        );
+        if (
+          stairsActor &&
+          this.summoner &&
+          this.summoner.pos.distance(stairsActor.pos) < 40
+        ) {
+          this.nextFloorSequence();
+        }
+      };
+
+      cardsRow.appendChild(cardElement);
+    });
+
+    // Fade overlay selection grid into view
+    overlay.style.display = 'flex';
   }
 
   onPreUpdate() {
@@ -123,10 +232,10 @@ export class DungeonScene extends ex.Scene {
     // Check for Enemy Encounters
     for (const enemy of this.enemies) {
       if (!enemy.isKilled() && this.summoner.pos.distance(enemy.pos) < 40) {
-        // --- NEW: Group Encounter Logic ---
+        // --- Group Encounter Logic ---
         const enemyGroup: Enemy[] = [enemy]; // Start with the overworld monster
 
-        // Don't multiply the Boss! Keep boss fights as a solitary 1v1 challenge.
+        // Don't multiply the Boss! Keep boss fights as a solitary challenge.
         if (enemy.enemyName !== 'Boss') {
           // Identify the specific class constructor (e.g., Slime or Ghost)
           const EnemyClass = enemy.constructor as new (
@@ -135,7 +244,6 @@ export class DungeonScene extends ex.Scene {
           ) => Enemy;
 
           // Instantiate 2 extra reinforcement clones of the same type
-          // We spawn them at the same position; they are hidden during overworld exploration anyway!
           const reinforcement1 = new EnemyClass(enemy.pos.x, enemy.pos.y);
           const reinforcement2 = new EnemyClass(enemy.pos.x, enemy.pos.y);
 
@@ -160,8 +268,8 @@ export class DungeonScene extends ex.Scene {
         this.summoner.pos.distance(entity.pos) < 30
       ) {
         entity.kill();
-        this.totalCoins += 10;
-        this.explorationHud.updateCoins(this.totalCoins);
+        state.totalCoins += 10; // Read/write directly from state file singleton instance
+        this.explorationHud.updateCoins(state.totalCoins);
       }
     });
   }
@@ -171,7 +279,6 @@ export class DungeonScene extends ex.Scene {
    */
   private initStairsCollision(summoner: ex.Actor) {
     summoner.on('collisionstart', (evt) => {
-      // Check if the entity run into is the procedural 'Stairs' actor
       if (evt.other.owner && evt.other.owner.name === 'Stairs') {
         // Check if there is an active, undefeated Boss on this floor
         const bossIsAlive = this.enemies.some(
@@ -180,8 +287,6 @@ export class DungeonScene extends ex.Scene {
 
         if (bossIsAlive) {
           console.log('🔒 The exit stairs are sealed by the Boss guardian!');
-
-          // Optional visual/audio feedback for the player
           if (Resources.ErrorSound?.isLoaded()) {
             Resources.ErrorSound.play(0.2);
           }
@@ -191,11 +296,8 @@ export class DungeonScene extends ex.Scene {
         console.log(
           'Stairs triggered! Initiating floor transition sequence...',
         );
-
-        // Play a quick visual transition or audio effect
         if (Resources.BlipSound.isLoaded()) Resources.BlipSound.play(0.2);
 
-        // Clear the old floor mapping and construct the new level grid
         this.nextFloorSequence();
       }
     });
@@ -212,36 +314,29 @@ export class DungeonScene extends ex.Scene {
    * Sweeps old floor actors out of memory and runs the generator to spin up the next map.
    */
   private nextFloorSequence() {
-    // 1. CRITICAL CONTEXT SYNC: Increment your global floor index BEFORE building the next layout!
+    // 1. CRITICAL CONTEXT SYNC: Increment floor BEFORE layout builds
     state.currentFloor++;
 
-    // 2. Clear out actors from the scene while protecting player and HUD assets
+    // 2. Clear out old floor elements from memory while protecting core player and HUD loops
     const actorsToRemove = this.actors.filter((actor) => {
-      // Keep the player character
       if (actor === this.summoner || actor.name === 'Summoner') return false;
-
-      // Keep the core HUD systems
       if (actor instanceof BattleHUD || actor instanceof ExplorationHUD)
         return false;
-
-      // Keep child sub-nodes attached to HUDs (protects nested text labels from sweeping)
       if (this.explorationHud && this.explorationHud.children.includes(actor))
         return false;
       if (this.battleHud && this.battleHud.children.includes(actor))
         return false;
-
-      return true; // Safely purge slimes, ghosts, items, and walls
+      return true;
     });
 
-    // Remove the gathered old floor actors from active memory
     actorsToRemove.forEach((actor) => this.remove(actor));
 
-    // 3. Re-run your generator to procedurally build the next level grid
+    // 3. Procedurally build the next level grid configuration
     const nextEnemies = LevelGenerator.generateFloor(this, 12, 20, 64);
     this.enemies = nextEnemies;
     this.updateCurrentFloorEnemies(nextEnemies);
 
-    // 4. Place player character in an open starting tile space
+    // 4. Reposition player character onto basic start space coordinates
     if (this.summoner) {
       this.summoner.pos = ex.vec(192, 192);
       this.summoner.z = 10;
@@ -249,17 +344,21 @@ export class DungeonScene extends ex.Scene {
       this.summoner.canMove = true;
     }
 
-    // 5. Reset Camera bounds
+    // 5. Anchor Camera frames
     this.camera.pos = ex.vec(192, 192);
     this.camera.strategy.lockToActor(this.summoner);
     this.camera.zoom = 1.5;
 
-    // 6. Force text boxes and tracking UI layers to sync with fresh room indices
+    // 6. Push current data values through to refresh tracking modules
     if (this.explorationHud) {
       this.explorationHud.graphics.visible = true;
       this.explorationHud.z = 100;
-      this.explorationHud.updateCoins(this.totalCoins);
+      this.explorationHud.updateCoins(state.totalCoins);
       this.explorationHud.updateFloor(state.currentFloor);
+      this.explorationHud.updateXpBar(
+        state.currentXp,
+        state.xpNeededForLevelUp,
+      );
     }
 
     console.log(`Floor B${state.currentFloor} initialized successfully!`);

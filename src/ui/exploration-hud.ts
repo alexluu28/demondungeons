@@ -2,6 +2,7 @@ import * as ex from 'excalibur';
 import { game } from '../resources';
 import { Summoner } from '../actors/summoner';
 import { Enemy } from '../actors/enemy';
+import { state } from '../state'; // <-- Added to grab the current level value
 
 export class ExplorationHUD extends ex.ScreenElement {
   private coinLabel!: ex.Label;
@@ -101,6 +102,30 @@ export class ExplorationHUD extends ex.ScreenElement {
   public updateFloor(floorNum: number) {
     if (this.floorLabel) {
       this.floorLabel.text = `FLOOR: ${floorNum}`;
+    }
+  }
+
+  /**
+   * Drives the layout metrics of the HTML experience progression bar.
+   */
+  public updateXpBar(currentXp: number, xpNeeded: number) {
+    const xpFill = document.getElementById('xp-bar-fill');
+    const xpText = document.getElementById('xp-bar-text');
+    const lvlText = document.getElementById('hud-level-text');
+
+    // Calculate percentage, capped at 100% to prevent bar styling overflow bugs
+    const percentage = Math.min((currentXp / xpNeeded) * 100, 100);
+
+    if (xpFill) {
+      xpFill.style.width = `${percentage}%`;
+    }
+
+    if (xpText) {
+      xpText.innerText = `${currentXp} / ${xpNeeded} XP`;
+    }
+
+    if (lvlText) {
+      lvlText.innerText = state.currentLevel.toString();
     }
   }
 }
