@@ -10,53 +10,58 @@ import { state } from '../state';
 import { generateThreeDraftCards, UpgradeCard } from '../logic/upgrades';
 
 export class DungeonScene extends ex.Scene {
-  private currentFloorEnemies: Enemy[] = [];
   private summoner!: Summoner;
   private battleHud!: BattleHUD;
   private explorationHud!: ExplorationHUD;
   private enemies: Enemy[] = [];
   private isCombatActive: boolean = false;
-  private activeEncounterGroup: Enemy[] = []; // Safely cache the active combatants
+  private activeEncounterGroup: Enemy[] = [];
 
-  onInitialize() {
-    // 1. Player Setup (Instantiated first so the LevelGenerator can adjust its position)
+  override onInitialize() {
+    // 1. Player Setup (Instantiated once)
     this.summoner = new Summoner(0, 0);
     this.summoner.name = 'Summoner';
     this.add(this.summoner);
 
-    // 2. World Generation (Grid layout handles player repositioning onto an open floor tile)
-    this.enemies = LevelGenerator.generateFloor(this, 12, 24, 64);
-
-    // 3. UI Setup
+    // 2. Persistent UI Elements Setup
     this.explorationHud = new ExplorationHUD();
     this.add(this.explorationHud);
 
     this.battleHud = new BattleHUD();
-    // Pass the cached encounter squad back to resolution safely on victory
     this.battleHud.onVictory = () => this.endCombat(this.activeEncounterGroup);
     this.add(this.battleHud);
 
-    // Camera Configuration - Anchor frames onto the generated spawn location
+    // Camera Configuration
     this.camera.pos = this.summoner.pos;
     this.camera.strategy.lockToActor(this.summoner);
     this.camera.zoom = 1.5;
 
-    // Set up permanent collision monitoring for advancing floors via stairs
     this.initStairsCollision(this.summoner);
   }
 
   /**
-   * Freezes world exploration and enters battle mode.
+   * Fires EVERY time this scene becomes active.
+   * This guarantees that resources are 100% ready before any tiles are placed.
    */
+  override onActivate(context: ex.SceneActivationContext<unknown>) {
+    super.onActivate(context);
+    console.log('DungeonScene activated. Safe asset injection ready.');
+
+    // Generate the initial floor structure now that resources are definitively in memory
+    if (this.enemies.length === 0) {
+      // Cast 'this' as any to seamlessly match Excalibur's generic typing structure
+      this.enemies = LevelGenerator.generateFloor(this as any, 12, 24, 64);
+    }
+  }
+
   public startCombat(enemyGroup: Enemy[]) {
     if (this.isCombatActive) return;
     this.isCombatActive = true;
     this.summoner.canMove = false;
-    this.activeEncounterGroup = enemyGroup; // Cache the current active squad parameters
+    this.activeEncounterGroup = enemyGroup;
 
-    // Hide world visuals, Excalibur HUD, and persistent HTML exploration HUD
+    // Hide world visuals and persistent HTML exploration HUD elements
     this.explorationHud.graphics.visible = false;
-
     const htmlHud = document.getElementById('exploration-html-hud');
     if (htmlHud) htmlHud.style.display = 'none';
 
@@ -71,22 +76,17 @@ export class DungeonScene extends ex.Scene {
     this.battleHud.setVisible(true);
   }
 
-  /**
-   * Cleans up combat, drops loot, and manages post-encounter floor checks.
-   * Decoupled from actor engine filters to prevent zero-XP assessment errors.
-   */
   public endCombat(defeatedGroup?: Enemy[]) {
     this.isCombatActive = false;
     this.explorationHud.graphics.visible = true;
 
-    // Fallback safely to a default group size of 3 units if array layer mapping drops context
     const enemiesDefeated =
       defeatedGroup && defeatedGroup.length > 0 ? defeatedGroup.length : 3;
     console.log(
-      `Combat resolved. Processing rewards for ${enemiesDefeated} squad elements.`,
+      `Combat resolved. Processing rewards for ${enemiesDefeated} elements.`,
     );
 
-    // 1. Drop loot tokens dynamically at your character location space coordinates
+    // 1. Drop loot tokens at the coordinate anchor points
     for (let i = 0; i < enemiesDefeated; i++) {
       const offsetX = (Math.random() - 0.5) * 20;
       const offsetY = (Math.random() - 0.5) * 20;
@@ -98,11 +98,20 @@ export class DungeonScene extends ex.Scene {
       loot.graphics.visible = true;
     }
 
-    // 2. Battle UI Cleanup
+    // 2. Clean out old overworld encounter targets from memory
+    if (defeatedGroup) {
+      defeatedGroup.forEach((enemy) => {
+        enemy.kill(); // Safely flag for removal from engine tracking
+        this.remove(enemy);
+      });
+      // Filter out killed enemies from the main tracking list
+      this.enemies = this.enemies.filter((e) => !e.isKilled());
+    }
+
     this.battleHud.updateEnemyList([]);
     this.battleHud.setVisible(false);
 
-    // 3. Restore Visibility to overworld survivors
+    // 3. Restore Visibility to survivors
     this.entities.forEach((entity) => {
       if (
         entity instanceof ex.Actor &&
@@ -113,63 +122,56 @@ export class DungeonScene extends ex.Scene {
       }
     });
 
-    // --- Experience Calculations ---
-    const xpEarned = enemiesDefeated * 35; // 35 XP per unit slayed in group encounters
-    console.log(
-      `Earned ${xpEarned} XP from battle resolutions. Total Enemies: ${enemiesDefeated}`,
-    );
-
+    // --- Experience Modifications Track ---
+    const xpEarned = enemiesDefeated * 35;
     const didLevelUp = state.gainXp(xpEarned);
 
-    // Synchronize the fresh stats out to the custom HTML bar tracking layout
-    this.explorationHud.updateXpBar(state.currentXp, state.xpNeededForLevelUp);
+    // Synchronize global metrics out to the HTML layout container
+    const levelText = document.getElementById('hud-level-text');
+    const fillElement = document.getElementById('xp-bar-fill');
+    const textElement = document.getElementById('xp-bar-text');
 
-    if (didLevelUp) {
-      console.log(
-        `✨ LEVEL UP! Reached level ${state.currentLevel}! Opening Draft Options...`,
-      );
-      this.summoner.canMove = false; // Freeze player movement
-
-      // Open the dynamic level-up selection screen
-      this.showLevelUpDraftOverlay();
-      return; // Hold progression checks until draft selection clears
+    if (levelText) levelText.innerText = `${state.currentLevel}`;
+    if (fillElement) {
+      fillElement.style.width = `${Math.min(100, (state.currentXp / state.xpNeededForLevelUp) * 100)}%`;
+    }
+    if (textElement) {
+      textElement.innerText = `${state.currentXp} / ${state.xpNeededForLevelUp} XP`;
     }
 
-    // Restore persistent exploration HTML layer if no level up intercepted control
+    if (didLevelUp) {
+      this.summoner.canMove = false;
+      this.showLevelUpDraftOverlay();
+      return;
+    }
+
+    // Restore persistent exploration HTML layout if no level up intercepted control flow
     const htmlHud = document.getElementById('exploration-html-hud');
     if (htmlHud) htmlHud.style.display = 'block';
 
     this.summoner.canMove = true;
-
-    // Reset tracking cache allocation space
     this.activeEncounterGroup = [];
 
-    // Room exit collision fallback verification
+    // Evaluate structural transitions if player won right on the exit tile
     const stairsActor = this.actors.find((actor) => actor.name === 'Stairs');
-    if (stairsActor && this.summoner) {
-      const distanceToStairs = this.summoner.pos.distance(stairsActor.pos);
-      if (distanceToStairs < 40) {
-        if (Resources.BlipSound.isLoaded()) Resources.BlipSound.play(0.2);
-        this.nextFloorSequence();
-      }
+    if (
+      stairsActor &&
+      this.summoner &&
+      this.summoner.pos.distance(stairsActor.pos) < 40
+    ) {
+      if (Resources.BlipSound.isLoaded()) Resources.BlipSound.play(0.2);
+      this.nextFloorSequence();
     }
   }
 
-  /**
-   * Generates and renders the 3 random HTML card choices directly over the canvas container.
-   */
   private showLevelUpDraftOverlay() {
     const overlay = document.getElementById('level-up-overlay');
     const cardsRow = document.getElementById('cards-row');
     if (!overlay || !cardsRow) return;
 
-    // Clear previous draft elements out of the container
     cardsRow.innerHTML = '';
-
-    // Generate 3 unique reward item cards from the logic pool
     const options = generateThreeDraftCards();
 
-    // Map and inject modern responsive DOM card nodes
     options.forEach((card: UpgradeCard) => {
       const cardElement = document.createElement('div');
       cardElement.className = 'upgrade-card';
@@ -180,35 +182,28 @@ export class DungeonScene extends ex.Scene {
         <div class="card-rarity rarity-${card.rarity.toLowerCase()}">${card.rarity}</div>
       `;
 
-      // Set up click interactions to process upgrades and clean up the overlay
       cardElement.onclick = () => {
-        console.log(`Selected Reward Card: ${card.title}`);
-
-        // Apply modification functions directly on targeted parameters
         card.applyReward();
-
-        // Dismiss the overlay layout frame
         overlay.style.display = 'none';
 
-        // Re-display exploration overlay HUD layouts and force metrics redraw
         const htmlHud = document.getElementById('exploration-html-hud');
         if (htmlHud) htmlHud.style.display = 'block';
 
-        if (this.explorationHud) {
-          this.explorationHud.updateCoins(state.totalCoins); // Read from synchronized global state
-          this.explorationHud.updateFloor(state.currentFloor);
-          this.explorationHud.updateXpBar(
-            state.currentXp,
-            state.xpNeededForLevelUp,
-          );
+        const levelText = document.getElementById('hud-level-text');
+        const fillElement = document.getElementById('xp-bar-fill');
+        const textElement = document.getElementById('xp-bar-text');
+
+        if (levelText) levelText.innerText = `${state.currentLevel}`;
+        if (fillElement) {
+          fillElement.style.width = `${Math.min(100, (state.currentXp / state.xpNeededForLevelUp) * 100)}%`;
+        }
+        if (textElement) {
+          textElement.innerText = `${state.currentXp} / ${state.xpNeededForLevelUp} XP`;
         }
 
-        // Unfreeze player inputs
         this.summoner.canMove = true;
-        this.activeEncounterGroup = []; // Clear current group cache safely
-        console.log('Reward applied smoothly. Exploration controls restored.');
+        this.activeEncounterGroup = [];
 
-        // Re-evaluate immediate escape vectors in case player completed battle directly on stairs
         const stairsActor = this.actors.find(
           (actor) => actor.name === 'Stairs',
         );
@@ -224,40 +219,33 @@ export class DungeonScene extends ex.Scene {
       cardsRow.appendChild(cardElement);
     });
 
-    // Fade overlay selection grid into view
     overlay.style.display = 'flex';
   }
 
-  onPreUpdate() {
+  override onPreUpdate() {
     if (this.isCombatActive) return;
 
     // Check for Enemy Encounters
     for (const enemy of this.enemies) {
       if (!enemy.isKilled() && this.summoner.pos.distance(enemy.pos) < 40) {
-        // --- Group Encounter Logic ---
-        const enemyGroup: Enemy[] = [enemy]; // Start with the overworld monster
+        const enemyGroup: Enemy[] = [enemy];
 
-        // Don't multiply the Boss! Keep boss fights as a solitary challenge.
         if (enemy.enemyName !== 'Boss') {
-          // Identify the specific class constructor (e.g., Slime or Ghost)
           const EnemyClass = enemy.constructor as new (
             x: number,
             y: number,
           ) => Enemy;
 
-          // Instantiate 2 extra reinforcement clones of the same type
           const reinforcement1 = new EnemyClass(enemy.pos.x, enemy.pos.y);
           const reinforcement2 = new EnemyClass(enemy.pos.x, enemy.pos.y);
 
-          // Push them into the active scene registry so Excalibur tracks them
+          // Register reinforcements directly into the scene tracking array
           this.add(reinforcement1);
           this.add(reinforcement2);
 
-          // Add them to our battle group array
           enemyGroup.push(reinforcement1, reinforcement2);
         }
 
-        // Trigger the battle scene with all 3 units!
         this.startCombat(enemyGroup);
         break;
       }
@@ -267,99 +255,66 @@ export class DungeonScene extends ex.Scene {
     this.entities.forEach((entity) => {
       if (
         entity instanceof Coin &&
+        !entity.isKilled() &&
         this.summoner.pos.distance(entity.pos) < 30
       ) {
         entity.kill();
-        state.totalCoins += 10; // Read/write directly from state file singleton instance
-        this.explorationHud.updateCoins(state.totalCoins);
+        this.remove(entity);
+        state.totalCoins += 10;
       }
     });
   }
 
-  /**
-   * Sets up collision events for interacting with the pre-rendered floor exit stairs.
-   */
   private initStairsCollision(summoner: ex.Actor) {
     summoner.on('collisionstart', (evt) => {
       if (evt.other.owner && evt.other.owner.name === 'Stairs') {
-        // Check if there is an active, undefeated Boss on this floor
         const bossIsAlive = this.enemies.some(
           (enemy) => enemy.enemyName === 'Boss' && !enemy.isKilled(),
         );
 
         if (bossIsAlive) {
           console.log('🔒 The exit stairs are sealed by the Boss guardian!');
-          if (Resources.ErrorSound?.isLoaded()) {
-            Resources.ErrorSound.play(0.2);
-          }
-          return; // STOP the sequence here—do not advance to the next floor!
+          if (Resources.ErrorSound?.isLoaded()) Resources.ErrorSound.play(0.2);
+          return;
         }
 
-        console.log(
-          'Stairs triggered! Initiating floor transition sequence...',
-        );
         if (Resources.BlipSound.isLoaded()) Resources.BlipSound.play(0.2);
-
         this.nextFloorSequence();
       }
     });
   }
 
   public updateCurrentFloorEnemies(enemies: Enemy[]) {
-    this.currentFloorEnemies = enemies;
-    console.log(
-      `Dungeon tracking updated: ${this.currentFloorEnemies.length} active targets.`,
-    );
+    this.enemies = enemies;
   }
 
-  /**
-   * Sweeps old floor actors out of memory and runs the generator to spin up the next map.
-   */
   private nextFloorSequence() {
-    // 1. CRITICAL CONTEXT SYNC: Increment floor BEFORE layout builds
     state.currentFloor++;
 
-    // 2. Clear out old floor elements from memory while protecting core player and HUD loops
     const actorsToRemove = this.actors.filter((actor) => {
       if (actor === this.summoner || actor.name === 'Summoner') return false;
       if (actor instanceof BattleHUD || actor instanceof ExplorationHUD)
         return false;
-      if (this.explorationHud && this.explorationHud.children.includes(actor))
-        return false;
-      if (this.battleHud && this.battleHud.children.includes(actor))
-        return false;
       return true;
     });
 
-    actorsToRemove.forEach((actor) => this.remove(actor));
+    actorsToRemove.forEach((actor) => {
+      actor.kill();
+      this.remove(actor);
+    });
 
-    // 3. Procedurally build the next level grid configuration (Using 24x24 for better room breathing room)
-    const nextEnemies = LevelGenerator.generateFloor(this, 12, 24, 64);
+    // Cast 'this' as any to match generic signature tracks smoothly
+    const nextEnemies = LevelGenerator.generateFloor(this as any, 12, 24, 64);
     this.enemies = nextEnemies;
-    this.updateCurrentFloorEnemies(nextEnemies);
 
-    // 4. Reposition player character visuals and inputs
     if (this.summoner) {
       this.summoner.z = 10;
       this.summoner.graphics.visible = true;
       this.summoner.canMove = true;
 
-      // Force camera tracking mechanics to bind to the fresh procedural coordinates immediately
       this.camera.pos = this.summoner.pos;
       this.camera.strategy.lockToActor(this.summoner);
       this.camera.zoom = 1.5;
-    }
-
-    // 5. Push current data values through to refresh tracking modules
-    if (this.explorationHud) {
-      this.explorationHud.graphics.visible = true;
-      this.explorationHud.z = 100;
-      this.explorationHud.updateCoins(state.totalCoins);
-      this.explorationHud.updateFloor(state.currentFloor);
-      this.explorationHud.updateXpBar(
-        state.currentXp,
-        state.xpNeededForLevelUp,
-      );
     }
 
     console.log(`Floor B${state.currentFloor} initialized successfully!`);

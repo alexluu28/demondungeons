@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Smt Roguelike</title>
   <style>
-    /* Prevent default page margins and center the game layout */
+    /* Prevent default page margins and force full-viewport centering */
     body {
       margin: 0;
       padding: 0;
@@ -15,42 +15,45 @@
       align-items: center;
       min-height: 100vh;
       overflow: hidden;
+      font-family: 'monospace', sans-serif;
     }
 
-    /* Bounded wrapper configuration anchoring HTML UI structures over the canvas */
+    /* --- THE MASTER CONTAINER ANCHOR --- */
     #game-wrapper {
-      position: relative;
-      width: 800px;
-      height: 600px;
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
-      background-color: #000000;
+      position: relative !important;
+      width: 800px !important;
+      height: 600px !important;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7) !important;
+      background-color: transparent !important;
+      overflow: hidden !important;
     }
 
     /* Force canvas layer to map exactly to boundary dimensions */
     #game {
-      display: block;
-      width: 100%;
-      height: 100%;
+      display: block !important;
+      width: 100% !important;
+      height: 100% !important;
+      background-color: #1a1a1a !important; /* Excalibur fallback color */
     }
 
-    /* --- PERSISTENT EXPLORATION HTML HUD --- */
+    /* --- PERSISTENT EXPLORATION HTML HUD (DOCKED TO THE BOTTOM OF THE GAME) --- */
     #exploration-html-hud {
       position: absolute;
-      top: 15px;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 90%;
-      max-width: 500px;
-      background: rgba(20, 20, 30, 0.75);
-      backdrop-filter: blur(4px);
-      -webkit-backdrop-filter: blur(4px);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 8px;
-      padding: 10px 15px;
-      z-index: 999; /* Higher than canvas, below level-up screen */
+      bottom: 20px;       /* Locked 20px from the bottom edge of the game screen */
+      left: 50%;          /* Anchors starting point exactly center-screen */
+      transform: translateX(-50%); /* Shifts left by half its width to perfectly center it */
+      width: 85%;
+      max-width: 550px;   /* Prevents it from spreading uncomfortably wide */
+      background: rgba(15, 15, 25, 0.85);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      border: 2px solid rgba(255, 255, 255, 0.12);
+      border-radius: 6px;
+      padding: 8px 16px;
+      z-index: 999;       /* Layers safely above the engine canvas render track */
       box-sizing: border-box;
-      font-family: 'monospace', sans-serif;
       color: #ffffff;
+      pointer-events: none; /* Allows mouse clicks to pass straight through to the map */
     }
 
     .hud-bar-container {
@@ -75,15 +78,15 @@
       position: relative;
       flex-grow: 1;
       height: 20px;
-      background: #151520;
+      background: #111116;
       border: 1px solid #333344;
       border-radius: 4px;
       overflow: hidden;
     }
 
-    /* Smooth linear scaling animation container */
+    /* Dynamic level scaling node */
     #xp-bar-fill {
-      width: 0%; /* Driven dynamically by TypeScript hooks */
+      width: 0%; /* Manipulated via your Engine initialization logic */
       height: 100%;
       background: linear-gradient(90deg, #00b4d8, #00f5d4);
       box-shadow: 0 0 10px rgba(0, 245, 212, 0.5);
@@ -102,26 +105,27 @@
       pointer-events: none;
     }
 
-    /* --- THE INTERACTIVE LEVEL-UP OVERLAY SCREEN --- */
+    /* --- THE INTERACTIVE LEVEL-UP OVERLAY SCREEN (CENTERED OVER THE GAME) --- */
     #level-up-overlay {
-      display: none; /* Injected flex toggle via TS manager files */
       position: absolute;
       top: 0;
       left: 0;
       width: 100%;
       height: 100%;
-      background: rgba(10, 10, 15, 0.9);
-      font-family: 'monospace', sans-serif;
-      color: #ffffff;
-      z-index: 9999; /* Highest priority visual layout anchor */
-      align-items: center;
+      z-index: 9999; /* Sits over everything inside the game-wrapper */
+      display: flex;
+      flex-direction: column;
       justify-content: center;
-      box-sizing: border-box;
+      align-items: center;
+      background-color: rgba(10, 10, 15, 0.92);
+      backdrop-filter: blur(5px);
+      -webkit-backdrop-filter: blur(5px);
+      transition: opacity 0.3s ease-in-out;
     }
 
     .draft-container {
       text-align: center;
-      width: 90%;
+      width: 100%;
     }
 
     .draft-headline {
@@ -138,18 +142,23 @@
       margin: 0 0 30px 0;
     }
 
+    /* Grid alignment organizing level selections */
     #cards-row {
       display: flex;
-      gap: 20px;
+      flex-direction: row;
+      gap: 24px;
       justify-content: center;
+      align-items: center;
+      width: 100%;
+      max-width: 760px; /* Snug containment width inside wrapper */
+      margin: 0 auto;
     }
 
-    /* Custom layout formatting structures for card elements */
     .upgrade-card {
       background: linear-gradient(135deg, #1e1e2f, #12121a);
       border: 2px solid #444466;
       border-radius: 10px;
-      width: 200px;
+      width: 210px;
       padding: 20px;
       cursor: pointer;
       box-sizing: border-box;
@@ -213,7 +222,7 @@
     </div>
   </div>
 
-  <div id="level-up-overlay">
+  <div id="level-up-overlay" style="display: none;">
     <div class="draft-container">
       <h2 class="draft-headline">✨ LEVEL UP! ✨</h2>
       <p class="draft-subline">Select an upgrade card to reinforce your party members</p>

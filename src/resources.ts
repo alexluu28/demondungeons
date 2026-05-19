@@ -1,49 +1,36 @@
 import * as ex from 'excalibur';
 
-// 1. Define the Engine
+// 1. Define your asset mappings
+export const Resources = {
+  FloorSprite: new ex.ImageSource('/sprites/floor.png'),
+  WallSprite: new ex.ImageSource('/sprites/wallsprite.png'),
+  SummonerSprite: new ex.ImageSource('/sprites/summoner.png'),
+  EnemySprite: new ex.ImageSource('/sprites/enemy.png'),
+  GhostSprite: new ex.ImageSource('/sprites/ghost.png'),
+  CoinSprite: new ex.ImageSource('/sprites/coin.png'), // Add this if you have a coin asset
+
+  // Audio Tracks
+  BlipSound: new ex.Sound('/sounds/blip.wav'),
+  ErrorSound: new ex.Sound('/sounds/error.wav'),
+};
+
+// 2. Initialize the Engine
 export const game = new ex.Engine({
   width: 800,
   height: 600,
+  canvasElementId: 'game',
   displayMode: ex.DisplayMode.FitScreen,
-  backgroundColor: ex.Color.fromHex('#1a1a1a'),
+  antialiasing: false, // Keeps your pixel art sharp!
 });
 
-
-export const Resources = {
-  // Sprites
-  SummonerSprite: new ex.ImageSource('./sprites/summoner.png'),
-  EnemySprite: new ex.ImageSource('./sprites/enemy.png'),
-  BossSprite: new ex.ImageSource('./sprites/boss.png'),
-  CoinSprite: new ex.ImageSource('./sprites/coin.png'),
-  StairsSprite: new ex.ImageSource('./sprites/stairs.png'),
-  WallSprite: new ex.ImageSource('./sprites/wallsprite.png'),
-  DomothySpire: new ex.ImageSource('./sprites/domothy.png'),
-  DomSpire: new ex.ImageSource('./sprites/dom_sprite_page.png'),
-
-  //enemy sprites
-  GhostSprite: new ex.ImageSource('./sprites/ghost.png'),
-  SlimeSprite: new ex.ImageSource('./sprites/slime.png'),
-
-  // Combat Sounds
-  HitSound: new ex.Sound('sounds/hit.wav'),
-  WeaknessSound: new ex.Sound('sounds/crit.wav'),
-  EnemyDeath: new ex.Sound('sounds/death.wav'),
-
-  //background
-  FloorSprite: new ex.ImageSource('./sprites/floor.png'),
-
-  // UI & Loot
-  CoinSound: new ex.Sound('sounds/coin.wav'),
-  BuySound: new ex.Sound('sounds/buy.wav'),
-  BlipSound: new ex.Sound('sounds/blip.wav'),
-  ErrorSound: new ex.Sound('./sounds/error.wav'),
-
-  // Music
-  DungeonMusic: new ex.Sound('sounds/dungeon_theme.mp3'),
-};
-
-// Create a loader to handle these assets
-export const loader = new ex.Loader();
-for (const res in Resources) {
-  loader.addResource((Resources as any)[res]);
-}
+// 3. PERMANENT FIX: Pass ALL resources explicitly into the array deck
+export const loader = new ex.Loader([
+  Resources.FloorSprite,
+  Resources.WallSprite,
+  Resources.SummonerSprite,
+  Resources.EnemySprite,
+  Resources.GhostSprite,
+  Resources.CoinSprite,
+  Resources.BlipSound,
+  Resources.ErrorSound,
+]);
