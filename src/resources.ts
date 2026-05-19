@@ -17,6 +17,8 @@ export const Resources = {
   CoinSprite: new ex.ImageSource('./sprites/coin.png'),
   StairsSprite: new ex.ImageSource('./sprites/stairs.png'),
   WallSprite: new ex.ImageSource('./sprites/wallsprite.png'),
+  DomothySpire: new ex.ImageSource('./sprites/domothy.png'),
+  DomSpire: new ex.ImageSource('./sprites/dom_sprite_page.png'),
 
   //enemy sprites
   GhostSprite: new ex.ImageSource('./sprites/ghost.png'),
