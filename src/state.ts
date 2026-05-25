@@ -6,8 +6,8 @@ export interface PartyMember {
   maxMp: number;
   skills: string[];
   weakness?: string;
-  attackPower: number; // <-- Added for card upgrade scaling
-  hasVampirism?: boolean; // <-- Added for rare trait modifiers
+  attackPower: number; // Added for card upgrade scaling
+  hasVampirism?: boolean; // Added for rare trait modifiers
 }
 
 export class GameState {
@@ -17,7 +17,7 @@ export class GameState {
   public totalCoins: number = 0;
   public currentFloor: number = 1;
 
-  // --- NEW: Experience & Progression Tracking ---
+  // Experience & Progression Tracking
   public currentLevel: number = 1;
   public currentXp: number = 0;
   public xpNeededForLevelUp: number = 100; // Baseline milestone value
@@ -32,7 +32,7 @@ export class GameState {
       maxMp: 50,
       skills: ['Zio', 'Agi'],
       weakness: 'Dark',
-      attackPower: 15, // Base power
+      attackPower: 15,
     },
     {
       name: 'JackFrost',
@@ -42,7 +42,7 @@ export class GameState {
       maxMp: 45,
       skills: ['Bufu', 'Mabufu'],
       weakness: 'Fire',
-      attackPower: 10, // Base power
+      attackPower: 10,
     },
   ];
 
@@ -65,12 +65,77 @@ export class GameState {
       this.currentXp -= this.xpNeededForLevelUp;
       this.currentLevel++;
 
-      // Exponential scaling curve (e.g., each level requires 20% more XP than the last)
+      // Exponential scaling curve (each level requires 20% more XP than the last)
       this.xpNeededForLevelUp = Math.floor(this.xpNeededForLevelUp * 1.2);
       return true; // Flag true to let DungeonScene know it's time to open the 3-card draft modal
     }
 
     return false;
+  }
+
+  /**
+   * PERMANENT SAVE: Serializes all progression tracking metrics and party compositions
+   * into a clean JSON string inside the browser's localStorage.
+   */
+  public saveGame(): void {
+    try {
+      const saveData = {
+        totalCoins: this.totalCoins,
+        currentFloor: this.currentFloor,
+        currentLevel: this.currentLevel,
+        currentXp: this.currentXp,
+        xpNeededForLevelUp: this.xpNeededForLevelUp,
+        party: this.party,
+      };
+
+      localStorage.setItem('summoner_dungeon_save', JSON.stringify(saveData));
+      console.log('💾 Game progress successfully autosaved!');
+    } catch (error) {
+      console.error('❌ Failed to write save data to localStorage:', error);
+    }
+  }
+
+  /**
+   * RETRIEVE DATA: Reads, parses, and maps your saved JSON layout back onto
+   * the live engine state variables if an active run exists.
+   */
+  public loadGame(): boolean {
+    try {
+      const rawData = localStorage.getItem('summoner_dungeon_save');
+      if (!rawData) {
+        console.log('No save data found. Initializing a clean run.');
+        return false;
+      }
+
+      const saveData = JSON.parse(rawData);
+
+      // Distribute saved primitives back onto the live state structure
+      this.totalCoins = saveData.totalCoins ?? 0;
+      this.currentFloor = saveData.currentFloor ?? 1;
+      this.currentLevel = saveData.currentLevel ?? 1;
+      this.currentXp = saveData.currentXp ?? 0;
+      this.xpNeededForLevelUp = saveData.xpNeededForLevelUp ?? 100;
+
+      // Preserve complex party configurations and custom draft card upgrades cleanly
+      if (saveData.party && Array.isArray(saveData.party)) {
+        this.party = saveData.party;
+      }
+
+      console.log('✨ Game state loaded successfully! Progress restored.');
+      return true;
+    } catch (error) {
+      console.error('❌ Failed to parse or execute load sequence:', error);
+      return false;
+    }
+  }
+
+  /**
+   * PURGE RUN: Wipes the storage slot completely clean. Use this when the player
+   * hits a explicit game over state or starts a totally fresh campaign profile.
+   */
+  public clearSave(): void {
+    localStorage.removeItem('summoner_dungeon_save');
+    console.log('🗑️ Profile save data completely purged.');
   }
 }
 

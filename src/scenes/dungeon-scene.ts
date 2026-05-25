@@ -139,6 +139,11 @@ export class DungeonScene extends ex.Scene {
       textElement.innerText = `${state.currentXp} / ${state.xpNeededForLevelUp} XP`;
     }
 
+    // Capture standard post-fight rewards immediately in local storage tracking loop
+    if (!didLevelUp) {
+      state.saveGame();
+    }
+
     if (didLevelUp) {
       this.summoner.canMove = false;
       this.showLevelUpDraftOverlay();
@@ -201,6 +206,9 @@ export class DungeonScene extends ex.Scene {
           textElement.innerText = `${state.currentXp} / ${state.xpNeededForLevelUp} XP`;
         }
 
+        // Commit save cleanly after draft card has mutated attributes
+        state.saveGame();
+
         this.summoner.canMove = true;
         this.activeEncounterGroup = [];
 
@@ -261,6 +269,9 @@ export class DungeonScene extends ex.Scene {
         entity.kill();
         this.remove(entity);
         state.totalCoins += 10;
+
+        // Autosave on item pickup so dynamic gold gains persist immediately
+        state.saveGame();
       }
     });
   }
@@ -290,6 +301,9 @@ export class DungeonScene extends ex.Scene {
 
   private nextFloorSequence() {
     state.currentFloor++;
+
+    // Commit progress to browser storage immediately upon advancing layout levels
+    state.saveGame();
 
     const actorsToRemove = this.actors.filter((actor) => {
       if (actor === this.summoner || actor.name === 'Summoner') return false;
