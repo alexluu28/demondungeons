@@ -23,28 +23,12 @@ export class GameState {
   public xpNeededForLevelUp: number = 100; // Baseline milestone value
 
   // Your starting party setup
-  public party: PartyMember[] = [
-    {
-      name: 'Pixie',
-      hp: 100,
-      maxHp: 100,
-      mp: 50,
-      maxMp: 50,
-      skills: ['Zio', 'Agi'],
-      weakness: 'Dark',
-      attackPower: 15,
-    },
-    {
-      name: 'JackFrost',
-      hp: 45,
-      maxHp: 45,
-      mp: 30,
-      maxMp: 45,
-      skills: ['Bufu', 'Mabufu'],
-      weakness: 'Fire',
-      attackPower: 10,
-    },
-  ];
+  public party: PartyMember[] = [];
+
+  // Private constructor to enforce Singleton blueprint pattern and establish baseline state
+  private constructor() {
+    this.initializeDefaultState();
+  }
 
   // Guarantees only one instance of the state exists
   public static getInstance(): GameState {
@@ -52,6 +36,40 @@ export class GameState {
       GameState._instance = new GameState();
     }
     return GameState._instance;
+  }
+
+  /**
+   * Sets up default values for a completely clean run.
+   */
+  private initializeDefaultState(): void {
+    this.totalCoins = 0;
+    this.currentFloor = 1;
+    this.currentLevel = 1;
+    this.currentXp = 0;
+    this.xpNeededForLevelUp = 100;
+
+    this.party = [
+      {
+        name: 'Pixie',
+        hp: 130, // Updated base value tracking to match your character profile maximums
+        maxHp: 130,
+        mp: 50,
+        maxMp: 50,
+        skills: ['Zio', 'Agi'],
+        weakness: 'Dark',
+        attackPower: 15,
+      },
+      {
+        name: 'JackFrost',
+        hp: 45,
+        maxHp: 45,
+        mp: 30,
+        maxMp: 45,
+        skills: ['Bufu', 'Mabufu'],
+        weakness: 'Fire',
+        attackPower: 10,
+      },
+    ];
   }
 
   /**
@@ -104,19 +122,18 @@ export class GameState {
       const rawData = localStorage.getItem('summoner_dungeon_save');
       if (!rawData) {
         console.log('No save data found. Initializing a clean run.');
+        this.initializeDefaultState();
         return false;
       }
 
       const saveData = JSON.parse(rawData);
 
-      // Distribute saved primitives back onto the live state structure
       this.totalCoins = saveData.totalCoins ?? 0;
       this.currentFloor = saveData.currentFloor ?? 1;
       this.currentLevel = saveData.currentLevel ?? 1;
       this.currentXp = saveData.currentXp ?? 0;
       this.xpNeededForLevelUp = saveData.xpNeededForLevelUp ?? 100;
 
-      // Preserve complex party configurations and custom draft card upgrades cleanly
       if (saveData.party && Array.isArray(saveData.party)) {
         this.party = saveData.party;
       }
@@ -125,17 +142,28 @@ export class GameState {
       return true;
     } catch (error) {
       console.error('❌ Failed to parse or execute load sequence:', error);
+      this.initializeDefaultState();
       return false;
     }
   }
 
   /**
    * PURGE RUN: Wipes the storage slot completely clean. Use this when the player
-   * hits a explicit game over state or starts a totally fresh campaign profile.
+   * hits an explicit game over state or starts a totally fresh campaign profile.
    */
   public clearSave(): void {
     localStorage.removeItem('summoner_dungeon_save');
     console.log('🗑️ Profile save data completely purged.');
+  }
+
+  /**
+   * HARD RESET ON GAME OVER: Full heals all parameters, completely wipes accumulated progression metrics,
+   * currency totals, and updates local cache to entirely prevent dead state reload loops.
+   */
+  public resetOnDeath(): void {
+    console.log('💀 Resetting game state due to party defeat...');
+    this.initializeDefaultState();
+    this.saveGame(); // Overwrite the save file immediately with these clean tracking defaults
   }
 }
 
