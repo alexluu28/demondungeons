@@ -11,9 +11,6 @@ export class BattleHUD extends ex.ScreenElement {
   private isProcessingVictory: boolean = false;
   private isEnemyTurn: boolean = false;
 
-  // In-Engine Combat Stage Canvas Actors
-  // private playerStageActors: ex.Actor[] = [];
-
   // UI HTML DOM Elements
   private logFeedElement: HTMLElement | null = null;
   private partyRowElement: HTMLElement | null = null;
@@ -62,49 +59,12 @@ export class BattleHUD extends ex.ScreenElement {
   }
 
   /**
-   * Cleans up canvas combatants from the active engine scene framework space safely.
-   */
-  // private _clearCanvasStageActors() {
-  //   this.playerStageActors.forEach((actor) => actor.kill());
-  //   this.playerStageActors = [];
-  // }
-
-  /**
    * Refreshes and positions enemy actors horizontally across the top-middle canvas stage area.
-   */
-  /**
-   * Refreshes and positions enemy actors horizontally across the top-middle canvas stage area.
+   * Suppressed: Visual sprites are now fully decoupled from Excalibur canvas layers
+   * and rendered inside HTML templates to resolve layout occlusion bugs.
    */
   private syncEnemyCanvasPositions() {
-    const scene = game.currentScene;
-
-    // SAFE FIX: Only lock down position if the camera isn't currently shaking!
-    if (scene.camera) {
-      const targetX = game.drawWidth / 2;
-      const targetY = game.drawHeight / 2;
-
-      // Only force snap if it's vastly out of place (e.g. initialization or scene transition)
-      if (
-        Math.abs(scene.camera.pos.x - targetX) > 20 ||
-        Math.abs(scene.camera.pos.y - targetY) > 20
-      ) {
-        scene.camera.pos = ex.vec(targetX, targetY);
-      }
-    }
-
-    this.currentEnemies.forEach((enemy, i) => {
-      if (enemy.currentHp <= 0) return;
-
-      // Position enemy sprites horizontally across the screen
-      enemy.pos = ex.vec(200 + i * 160, 150);
-
-      // CRITICAL: Ensure we bypass ScreenElement graphics suppression
-      enemy.graphics.visible = true;
-
-      if (!scene.actors.includes(enemy)) {
-        scene.add(enemy);
-      }
-    });
+    // Left empty intentionally to prevent rogue canvas actors rendering behind panels
   }
 
   /**
@@ -148,10 +108,7 @@ export class BattleHUD extends ex.ScreenElement {
   }
 
   /**
-   * Renders enemy layout status cards into a clean, horizontal row.
-   */
-  /**
-   * Renders enemy layout status cards into a clean, horizontal row.
+   * Renders enemy layout status cards along with their respective visual sprites into a clean row.
    */
   private refreshEnemyUI() {
     if (!this.enemyContainerElement) return;
@@ -159,37 +116,63 @@ export class BattleHUD extends ex.ScreenElement {
     const enemyContainer = this.enemyContainerElement;
     enemyContainer.innerHTML = '';
 
-    // Enforce horizontal flexbox row formatting directly on the wrapper element
+    // Center format directly across the top middle
     enemyContainer.style.display = 'flex';
     enemyContainer.style.flexDirection = 'row';
     enemyContainer.style.gap = '20px';
     enemyContainer.style.position = 'absolute';
-    enemyContainer.style.top = '270px'; // Shifted down slightly to align beneath your canvas enemy positions
+    enemyContainer.style.top = '220px'; // Shifted up slightly to leave comfortable room for sprites
     enemyContainer.style.left = '160px';
 
     if (this.currentEnemies.length === 0) return;
 
-    this.currentEnemies.forEach((enemy) => {
+    this.currentEnemies.forEach((enemy, i) => {
       if (enemy.currentHp <= 0) return;
 
       const hpPercent = Math.max(0, (enemy.currentHp / enemy.maxHp) * 100);
-      const enemyCard = document.createElement('div');
 
+      // Clean up string to find the correct asset image path
+      const spriteFileName =
+        enemy.enemyName.toLowerCase().replace(/\s+/g, '') + '.png';
+      const spritePath = `/sprites/${spriteFileName}`;
+
+      const enemyCard = document.createElement('div');
+      // Assign an ID so we can easily target this specific card for local hit shakes!
+      enemyCard.id = `enemy-card-${i}`;
       enemyCard.className = 'enemy-status-card';
       enemyCard.style.width = '140px';
-      enemyCard.style.background = 'rgba(20, 10, 10, 0.85)';
-      enemyCard.style.border = '2px solid #ff4a4a';
-      enemyCard.style.borderRadius = '6px';
-      enemyCard.style.padding = '8px';
-      enemyCard.style.boxShadow = '0 4px 10px rgba(0,0,0,0.5)';
+      enemyCard.style.display = 'flex';
+      enemyCard.style.flexDirection = 'column';
+      enemyCard.style.alignItems = 'center';
 
+      // HTML Injection handling both the centered sprite image and status tracking bars cleanly
       enemyCard.innerHTML = `
-        <div class="card-hero-name" style="color: #ff4a4a; font-weight: bold; font-size: 12px; font-family: monospace;">${enemy.enemyName.toUpperCase()}</div>
-        <div style="font-size: 10px; color: #8c9ba5; font-family: monospace; margin-top: 1px;">WEAK: ${enemy.weakness?.toUpperCase() || 'NONE'}</div>
-        <div class="bar-track" style="margin-top: 6px; background: #111; height: 6px; border-radius: 3px; overflow: hidden; border: 1px solid #333;">
-          <div class="bar-fill-hp" style="width: ${hpPercent}%; background: linear-gradient(90deg, #ff3333, #ff5e5e); height: 100%;"></div>
+        <div class="enemy-sprite-preview" style="
+          width: 48px; 
+          height: 48px; 
+          background-image: url('${spritePath}'); 
+          background-size: contain; 
+          background-repeat: no-repeat; 
+          background-position: center;
+          margin-bottom: 8px;
+        "></div>
+
+        <div style="
+          width: 100%;
+          background: rgba(20, 10, 10, 0.85);
+          border: 2px solid #ff4a4a;
+          border-radius: 6px;
+          padding: 8px;
+          box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+          box-sizing: border-box;
+        ">
+          <div class="card-hero-name" style="color: #ff4a4a; font-weight: bold; font-size: 12px; font-family: monospace;">${enemy.enemyName.toUpperCase()}</div>
+          <div style="font-size: 10px; color: #8c9ba5; font-family: monospace; margin-top: 1px;">WEAK: ${enemy.weakness?.toUpperCase() || 'NONE'}</div>
+          <div class="bar-track" style="margin-top: 6px; background: #111; height: 6px; border-radius: 3px; overflow: hidden; border: 1px solid #333;">
+            <div class="bar-fill-hp" style="width: ${hpPercent}%; background: linear-gradient(90deg, #ff3333, #ff5e5e); height: 100%;"></div>
+          </div>
+          <div style="font-size: 10px; color: #ffffff; text-align: right; font-family: monospace; margin-top: 4px;">HP: ${enemy.currentHp}/${enemy.maxHp}</div>
         </div>
-        <div style="font-size: 10px; color: #ffffff; text-align: right; font-family: monospace; margin-top: 4px;">HP: ${enemy.currentHp}/${enemy.maxHp}</div>
       `;
 
       enemyContainer.appendChild(enemyCard);
@@ -381,6 +364,9 @@ export class BattleHUD extends ex.ScreenElement {
       if (skillName === 'bufu') damageType = Element.Ice;
       if (skillName === 'agi') damageType = Element.Fire;
 
+      // Track exact position index of current enemy target
+      const targetIndex = this.currentEnemies.indexOf(target);
+
       this.pushLog(
         `${activeDemon.name.toUpperCase()} casted ${skillName.toUpperCase()} on ${target.enemyName.toUpperCase()}!`,
         'player',
@@ -390,6 +376,25 @@ export class BattleHUD extends ex.ScreenElement {
       if (Resources.BlipSound.isLoaded()) Resources.BlipSound.play(0.3);
 
       this.refreshEnemyUI();
+
+      // 💥 TRIGGER HTML SHAKE IMPACT EFFECT DIRECTLY ON THE ELEMENT
+      const targetCard = document.getElementById(`enemy-card-${targetIndex}`);
+      if (targetCard) {
+        targetCard.animate(
+          [
+            { transform: 'translateX(0px)' },
+            { transform: 'translateX(-10px)' },
+            { transform: 'translateX(10px)' },
+            { transform: 'translateX(-10px)' },
+            { transform: 'translateX(10px)' },
+            { transform: 'translateX(0px)' },
+          ],
+          {
+            duration: 200,
+            iterations: 1,
+          },
+        );
+      }
 
       const stillAlive = this.currentEnemies.filter((e) => e.currentHp > 0);
 
@@ -403,10 +408,6 @@ export class BattleHUD extends ex.ScreenElement {
         target.weakness.toLowerCase() === damageType.toLowerCase();
 
       if (hitWeakness) {
-        // Trigger a strong horizontal engine camera shake on weakness exploitation
-        // ✂️ REMOVED duplicate game.currentScene.camera.shake call from here
-        // game.currentScene.camera.shake(6, 6, 200);
-
         this.updateTurnStatus(`${activeDemon.name} (1 MORE)`, '#ffcc00');
         this.pushLog(
           `✨ WEAKNESS STRIKE! ${target.enemyName.toUpperCase()} staggered! 1 More Turn granted!`,
