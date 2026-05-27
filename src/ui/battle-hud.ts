@@ -2,6 +2,7 @@ import * as ex from 'excalibur';
 import { Enemy } from '../actors/enemy';
 import { Resources, game } from '../resources';
 import { Element } from '../types/combat';
+import { state } from '../state'; // Imported state singleton tracking instance
 
 export class BattleHUD extends ex.ScreenElement {
   private currentParty: any[] = [];
@@ -96,9 +97,6 @@ export class BattleHUD extends ex.ScreenElement {
     this.refreshEnemyUI();
   }
 
-  /**
-   * Completely renders enemy components into center-stage HTML cards.
-   */
   /**
    * Completely renders enemy components into right-stage HTML cards.
    */
@@ -311,32 +309,10 @@ export class BattleHUD extends ex.ScreenElement {
     parentContainer?.appendChild(overlay);
 
     setTimeout(() => {
-      // 1. Full heal party members and wipe their local experience pools
-      this.currentParty.forEach((demon) => {
-        demon.hp = demon.maxHp || 100;
-        demon.mp = demon.maxMp || 50;
+      // Wipes browser cache data and builds clean, full-health defaults
+      state.resetOnDeath();
 
-        // Wipe character experience if stored on the entity
-        if ('exp' in demon) demon.exp = 0;
-        if ('experience' in demon) demon.experience = 0;
-      });
-
-      // 2. Clear Progression State from browser cache (if you use localStorage for saves)
-      // localStorage.removeItem('player_coins'); // Change keys to match your exact setup
-      localStorage.removeItem('player_experience');
-      localStorage.removeItem('player_party_stats');
-      // localStorage.clear(); // Alternatively, uncomment this line to completely wipe ALL local storage storage
-
-      // 3. Reset Global Variables / Singletons if they exist on your game engine context
-      // Depending on how your architecture tracks currency, update it here before reload:
-      // if ((game as any).coins) (game as any).coins = 0;
-      if ((game as any).globalExp) (game as any).globalExp = 0;
-      if ((game as any).state) {
-        // (game as any).state.coins = 0;
-        (game as any).state.experience = 0;
-      }
-
-      // 4. Finally, reload the application window with a fresh slate
+      // Finally, reload the application window with a fresh slate
       window.location.reload();
     }, 3000);
   }
