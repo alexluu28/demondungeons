@@ -105,6 +105,171 @@
       pointer-events: none;
     }
 
+    /* --- REVAMPED BATTLE HTML HUD SYSTEM CONFIGURATION --- */
+    #battle-html-hud {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 800px;
+      height: 600px;
+      pointer-events: none; /* Let clicks pass down to Excalibur selectors */
+      font-family: 'Courier New', Courier, monospace;
+      color: #ffffff;
+      box-sizing: border-box;
+      z-index: 995;
+    }
+
+    /* Retro Combat Feed Container Container */
+    #battle-log-container {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      width: 280px;
+      height: 220px;
+      background: rgba(10, 15, 25, 0.88);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+      border: 2px solid #3a4b6e;
+      border-radius: 4px;
+      display: flex;
+      flex-direction: column;
+      pointer-events: auto; /* Let scrollbars work smoothly */
+    }
+
+    .battle-log-header {
+      background: #1c263b;
+      padding: 6px 10px;
+      font-size: 11px;
+      font-weight: bold;
+      letter-spacing: 1px;
+      color: #00ffcc;
+      border-bottom: 1px solid #3a4b6e;
+    }
+
+    #battle-log-feed {
+      padding: 8px 10px;
+      font-size: 12px;
+      line-height: 1.4;
+      overflow-y: auto;
+      flex-grow: 1;
+    }
+
+    /* Combat Feed Colorization Modifiers */
+    .log-entry-system { color: #8c9ba5; }
+    .log-entry-player { color: #00ffcc; }
+    .log-entry-enemy { color: #ff4a4a; }
+    .log-entry-weak { color: #ffcc00; font-weight: bold; text-shadow: 0 0 4px rgba(255, 204, 0, 0.3); }
+
+    /* Right-Hand Column Enemy Layout Deck */
+    #battle-enemy-container {
+      position: absolute;
+      top: 20px;
+      right: 20px;        /* Matches layout alignment balancing the combat log */
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      pointer-events: auto;
+    }
+
+    .enemy-row {
+      display: flex;
+      flex-direction: column;
+      padding: 10px;
+      background: rgba(20, 12, 12, 0.92); /* Dark red background matching battle aesthetic */
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+      border: 2px solid #ff4a4a;
+      border-radius: 4px;
+      width: 180px;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.6);
+    }
+
+    /* Bottom Row Party Grid Deck Layout */
+    #battle-party-row {
+      position: absolute;
+      bottom: 20px;
+      left: 20px;
+      width: 480px; /* Leaves clear right-hand tracking space for enemy panels */
+      display: flex;
+      gap: 12px;
+      pointer-events: auto;
+    }
+
+    .party-status-card {
+      flex: 1;
+      background: rgba(16, 22, 34, 0.92);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+      border: 2px solid #2d3954;
+      padding: 10px;
+      border-radius: 4px;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    /* Focus border state indicator for processing turns */
+    .party-status-card.active-turn {
+      border-color: #00ffcc;
+      box-shadow: 0 0 10px rgba(0, 255, 204, 0.3);
+    }
+
+    .card-hero-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+      border-bottom: 1px solid rgba(45, 57, 84, 0.5);
+      padding-bottom: 4px;
+    }
+
+    .card-sprite-slot {
+      width: 24px;
+      height: 24px;
+      background-size: contain;
+      background-repeat: no-repeat;
+      background-position: center;
+      image-rendering: pixelated;
+    }
+
+    .card-hero-name {
+      font-weight: bold;
+      font-size: 12px;
+      color: #e1e7f0;
+      letter-spacing: 0.5px;
+    }
+
+    /* Resource Bar Assemblies */
+    .bar-row {
+      margin-bottom: 6px;
+      font-size: 11px;
+    }
+
+    .bar-label {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 2px;
+      font-weight: bold;
+    }
+
+    .bar-track {
+      height: 6px;
+      background: #111116;
+      border: 1px solid #222230;
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    .bar-fill-hp {
+      height: 100%;
+      background: linear-gradient(90deg, #ff3333, #ff5e5e);
+      transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .bar-fill-mp {
+      height: 100%;
+      background: linear-gradient(90deg, #2980b9, #3498db);
+      transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
     /* --- THE INTERACTIVE LEVEL-UP OVERLAY SCREEN (CENTERED OVER THE GAME) --- */
     #level-up-overlay {
       position: absolute;
@@ -168,6 +333,7 @@
       justify-content: space-between;
       min-height: 260px;
       text-align: left;
+      font-family: 'monospace', sans-serif;
     }
 
     .upgrade-card:hover {
@@ -222,13 +388,23 @@
     </div>
   </div>
 
+  <div id="battle-html-hud" style="display: none;">
+    <div id="battle-log-container">
+      <div class="battle-log-header">COMBAT LOG</div>
+      <div id="battle-log-feed"></div>
+    </div>
+
+    <div id="battle-enemy-container"></div>
+
+    <div id="battle-party-row"></div>
+  </div>
+
   <div id="level-up-overlay" style="display: none;">
     <div class="draft-container">
       <h2 class="draft-headline">✨ LEVEL UP! ✨</h2>
       <p class="draft-subline">Select an upgrade card to reinforce your party members</p>
 
-      <div id="cards-row">
-      </div>
+      <div id="cards-row"></div>
     </div>
   </div>
 </div>
