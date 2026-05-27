@@ -11,6 +11,9 @@ export class BattleHUD extends ex.ScreenElement {
   private isProcessingVictory: boolean = false;
   private isEnemyTurn: boolean = false;
 
+  // In-Engine Combat Stage Canvas Actors
+  // private playerStageActors: ex.Actor[] = [];
+
   // UI HTML DOM Elements
   private logFeedElement: HTMLElement | null = null;
   private partyRowElement: HTMLElement | null = null;
@@ -59,6 +62,52 @@ export class BattleHUD extends ex.ScreenElement {
   }
 
   /**
+   * Cleans up canvas combatants from the active engine scene framework space safely.
+   */
+  // private _clearCanvasStageActors() {
+  //   this.playerStageActors.forEach((actor) => actor.kill());
+  //   this.playerStageActors = [];
+  // }
+
+  /**
+   * Refreshes and positions enemy actors horizontally across the top-middle canvas stage area.
+   */
+  /**
+   * Refreshes and positions enemy actors horizontally across the top-middle canvas stage area.
+   */
+  private syncEnemyCanvasPositions() {
+    const scene = game.currentScene;
+
+    // SAFE FIX: Only lock down position if the camera isn't currently shaking!
+    if (scene.camera) {
+      const targetX = game.drawWidth / 2;
+      const targetY = game.drawHeight / 2;
+
+      // Only force snap if it's vastly out of place (e.g. initialization or scene transition)
+      if (
+        Math.abs(scene.camera.pos.x - targetX) > 20 ||
+        Math.abs(scene.camera.pos.y - targetY) > 20
+      ) {
+        scene.camera.pos = ex.vec(targetX, targetY);
+      }
+    }
+
+    this.currentEnemies.forEach((enemy, i) => {
+      if (enemy.currentHp <= 0) return;
+
+      // Position enemy sprites horizontally across the screen
+      enemy.pos = ex.vec(200 + i * 160, 150);
+
+      // CRITICAL: Ensure we bypass ScreenElement graphics suppression
+      enemy.graphics.visible = true;
+
+      if (!scene.actors.includes(enemy)) {
+        scene.add(enemy);
+      }
+    });
+  }
+
+  /**
    * Updates the center-top turn banner status smoothly via HTML stylings.
    */
   private updateTurnStatus(text: string, colorHex: string) {
@@ -94,17 +143,29 @@ export class BattleHUD extends ex.ScreenElement {
     this.isProcessingVictory = false;
     this.isEnemyTurn = false;
 
+    this.syncEnemyCanvasPositions();
     this.refreshEnemyUI();
   }
 
   /**
-   * Completely renders enemy components into right-stage HTML cards.
+   * Renders enemy layout status cards into a clean, horizontal row.
+   */
+  /**
+   * Renders enemy layout status cards into a clean, horizontal row.
    */
   private refreshEnemyUI() {
     if (!this.enemyContainerElement) return;
 
     const enemyContainer = this.enemyContainerElement;
     enemyContainer.innerHTML = '';
+
+    // Enforce horizontal flexbox row formatting directly on the wrapper element
+    enemyContainer.style.display = 'flex';
+    enemyContainer.style.flexDirection = 'row';
+    enemyContainer.style.gap = '20px';
+    enemyContainer.style.position = 'absolute';
+    enemyContainer.style.top = '270px'; // Shifted down slightly to align beneath your canvas enemy positions
+    enemyContainer.style.left = '160px';
 
     if (this.currentEnemies.length === 0) return;
 
@@ -113,15 +174,22 @@ export class BattleHUD extends ex.ScreenElement {
 
       const hpPercent = Math.max(0, (enemy.currentHp / enemy.maxHp) * 100);
       const enemyCard = document.createElement('div');
-      enemyCard.className = 'enemy-row';
+
+      enemyCard.className = 'enemy-status-card';
+      enemyCard.style.width = '140px';
+      enemyCard.style.background = 'rgba(20, 10, 10, 0.85)';
+      enemyCard.style.border = '2px solid #ff4a4a';
+      enemyCard.style.borderRadius = '6px';
+      enemyCard.style.padding = '8px';
+      enemyCard.style.boxShadow = '0 4px 10px rgba(0,0,0,0.5)';
 
       enemyCard.innerHTML = `
-        <div class="card-hero-name" style="color: #ff4a4a; font-weight: bold; font-size: 13px;">${enemy.enemyName.toUpperCase()}</div>
-        <div style="font-size: 11px; color: #8c9ba5; margin-top: 2px;">WEAK: ${enemy.weakness?.toUpperCase() || 'NONE'}</div>
+        <div class="card-hero-name" style="color: #ff4a4a; font-weight: bold; font-size: 12px; font-family: monospace;">${enemy.enemyName.toUpperCase()}</div>
+        <div style="font-size: 10px; color: #8c9ba5; font-family: monospace; margin-top: 1px;">WEAK: ${enemy.weakness?.toUpperCase() || 'NONE'}</div>
         <div class="bar-track" style="margin-top: 6px; background: #111; height: 6px; border-radius: 3px; overflow: hidden; border: 1px solid #333;">
           <div class="bar-fill-hp" style="width: ${hpPercent}%; background: linear-gradient(90deg, #ff3333, #ff5e5e); height: 100%;"></div>
         </div>
-        <div style="font-size: 10px; color: #ffffff; text-align: right; margin-top: 4px;">HP: ${enemy.currentHp}/${enemy.maxHp}</div>
+        <div style="font-size: 10px; color: #ffffff; text-align: right; font-family: monospace; margin-top: 4px;">HP: ${enemy.currentHp}/${enemy.maxHp}</div>
       `;
 
       enemyContainer.appendChild(enemyCard);
@@ -135,28 +203,14 @@ export class BattleHUD extends ex.ScreenElement {
     this.clearLog();
     this.pushLog('⚔️ Combat Initiation... Rolling Initiative!', 'system');
 
-    const playerRoll = Math.floor(Math.random() * 6) + 1;
-    const enemyRoll = Math.floor(Math.random() * 6) + 1;
-
-    if (enemyRoll > playerRoll) {
-      this.isEnemyTurn = true;
-      this.updateTurnStatus('ENEMY TURN', '#ff4a4a');
-      this.pushLog(
-        `⚠️ Enemies intercepted your path! (Enemy Initiative Advantage)`,
-        'enemy',
-      );
-      this.refreshPartyUI();
-      setTimeout(() => this.enemyTurn(), 400);
-    } else {
-      this.isEnemyTurn = false;
-      const activeDemon = this.currentParty[this.currentTurnIndex];
-      this.updateTurnStatus(`${activeDemon?.name}'s Turn`, '#00ffcc');
-      this.pushLog(
-        `✦ Player advantage secured! ${activeDemon?.name.toUpperCase()} prepares an action.`,
-        'player',
-      );
-      this.refreshPartyUI();
-    }
+    this.isEnemyTurn = false;
+    const activeDemon = this.currentParty[this.currentTurnIndex];
+    this.updateTurnStatus(`${activeDemon?.name}'s Turn`, '#00ffcc');
+    this.pushLog(
+      `✦ Player advantage secured! ${activeDemon?.name.toUpperCase()} prepares an action.`,
+      'player',
+    );
+    this.refreshPartyUI();
   }
 
   private refreshPartyUI() {
@@ -286,7 +340,6 @@ export class BattleHUD extends ex.ScreenElement {
     this.updateTurnStatus('DEFEAT', '#ff4a4a');
     this.pushLog(`❌ Party wiped out. Defeat...`, 'enemy');
 
-    // Create a temporary fullscreen DOM overlay instead of canvas labels
     const overlay = document.createElement('div');
     overlay.style.position = 'absolute';
     overlay.style.top = '0';
@@ -309,10 +362,7 @@ export class BattleHUD extends ex.ScreenElement {
     parentContainer?.appendChild(overlay);
 
     setTimeout(() => {
-      // Wipes browser cache data and builds clean, full-health defaults
       state.resetOnDeath();
-
-      // Finally, reload the application window with a fresh slate
       window.location.reload();
     }, 3000);
   }
@@ -353,6 +403,10 @@ export class BattleHUD extends ex.ScreenElement {
         target.weakness.toLowerCase() === damageType.toLowerCase();
 
       if (hitWeakness) {
+        // Trigger a strong horizontal engine camera shake on weakness exploitation
+        // ✂️ REMOVED duplicate game.currentScene.camera.shake call from here
+        // game.currentScene.camera.shake(6, 6, 200);
+
         this.updateTurnStatus(`${activeDemon.name} (1 MORE)`, '#ffcc00');
         this.pushLog(
           `✨ WEAKNESS STRIKE! ${target.enemyName.toUpperCase()} staggered! 1 More Turn granted!`,
@@ -410,6 +464,9 @@ export class BattleHUD extends ex.ScreenElement {
           target.weakness &&
           target.weakness.toLowerCase() === enemyElement.toLowerCase()
         ) {
+          // Trigger an intense screen shudder when the player takes heavy weakness damage
+          game.currentScene.camera.shake(8, 8, 250);
+
           this.updateTurnStatus(`ENEMY WEAKNESS STRIKE!`, '#ffcc00');
           this.pushLog(
             `⚠️ CRITICAL PUNISHMENT! Weakness struck on ${target.name.toUpperCase()}!`,
@@ -452,6 +509,13 @@ export class BattleHUD extends ex.ScreenElement {
       mainHUD.style.display = visible ? 'block' : 'none';
     }
 
+    // Direct graphic overrides to ensure clean layers
+    this.currentEnemies.forEach((enemy) => {
+      if (enemy.currentHp > 0) {
+        enemy.graphics.visible = visible;
+      }
+    });
+
     this.children.forEach((child) => {
       if (child instanceof ex.Actor || child instanceof ex.ScreenElement) {
         child.graphics.visible = visible;
@@ -459,6 +523,7 @@ export class BattleHUD extends ex.ScreenElement {
     });
 
     if (visible) {
+      this.syncEnemyCanvasPositions();
       this.refreshEnemyUI();
       this.refreshPartyUI();
     }

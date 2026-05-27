@@ -280,13 +280,20 @@ button:hover {
     text-align: left;
 }
 
+/* Update your stylesheet layout selectors for the log frame */
 #battle-log-feed {
-    padding: 6px 10px;
-    font-size: 11px;
-    line-height: 1.3;
+    position: absolute;
+    bottom: 25px;       /* Aligned to sit flush on the bottom blue strip */
+    left: 640px;        /* Pushed horizontally past Pixie and Jack Frost cards */
+    width: 320px;       /* Fitted perfectly into the remaining screen width */
+    height: 250px;      /* Matched to seamlessly match party card vertical height profiles */
+    background: rgba(10, 15, 25, 0.85);
+    border: 1px solid #3a4454;
+    border-radius: 6px;
+    padding: 12px;
     overflow-y: auto;
-    flex-grow: 1;
-    text-align: left;
+    font-family: monospace;
+    box-sizing: border-box;
 }
 
 .log-entry-system { color: #8c9ba5; }
