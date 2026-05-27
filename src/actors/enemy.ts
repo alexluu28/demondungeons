@@ -1,6 +1,6 @@
 import * as ex from 'excalibur';
 import { Element } from '../types/combat';
-import { Resources } from '../resources';
+import { Resources, game } from '../resources';
 
 export class Enemy extends ex.Actor {
   public currentHp: number;
@@ -23,11 +23,11 @@ export class Enemy extends ex.Actor {
   ) {
     super({
       pos: ex.vec(x, y),
-      // Scale these to match your grid size (e.g., 64x64 or 32x32)
-      width: 32,
-      height: 32,
+      // Scaled up to 48x48 so sprites stand out clearly on the battle stage grid
+      width: 48,
+      height: 48,
       collisionType: ex.CollisionType.Passive,
-      z: 1, // Ensure they are above the floor tiles
+      z: 5, // Ensures they layer prominently above floor tracks and backgrounds
     });
 
     this.enemyName = name;
@@ -37,35 +37,56 @@ export class Enemy extends ex.Actor {
   }
 
   onInitialize(_engine: ex.Engine) {
-    // FALLBACK SPRITE:
-    // This ensures every enemy has a visual, even if the subclass doesn't set one.
-    if (!this.graphics.current) {
+    this.assignVisualSprite();
+  }
+
+  /**
+   * Dynamically checks the loaded asset registry to pair the enemy name with a
+   * high-resolution texture asset, falling back gracefully to the standard sprite.
+   */
+  private assignVisualSprite() {
+    const lookupKey = `${this.enemyName.replace(/\s+/g, '')}Sprite`;
+    const registry = Resources as Record<string, any>;
+
+    if (
+      registry[lookupKey] &&
+      typeof registry[lookupKey].toSprite === 'function'
+    ) {
+      this.graphics.use(registry[lookupKey].toSprite());
+    } else if (Resources.EnemySprite) {
       this.graphics.use(Resources.EnemySprite.toSprite());
     }
   }
 
   /**
    * Base attack execution method for all monsters.
-   * Subclasses (like Boss) can override this to execute high-impact mechanics.
-   * * @param summoner The target player actor instance to damage
+   * Handles physical kinetic lunge animations moving toward party arrays.
    */
   public attack(summoner: any) {
     console.log(`${this.enemyName} lunges forward to attack!`);
 
-    // Fallback duck-typing check to safely apply damage to the player asset
-    if (summoner && typeof summoner.takeDamage === 'function') {
-      summoner.takeDamage(this.stats.str);
-    }
+    // Physical lunge logic moving 40px left into target frame space, then snapping back
+    // Smoothly dash left 40 pixels over 250ms, then slide back
+    const originalX = this.pos.x;
+
+    this.actions
+      .moveBy(-40, 0, 160) // 160 is the speed (pixels per second)
+      .callMethod(() => {
+        if (summoner && typeof summoner.takeDamage === 'function') {
+          summoner.takeDamage(this.stats.str);
+        }
+      })
+      .moveTo(originalX, this.pos.y, 160);
   }
 
   /**
-   * Processes damage and applies the 2x Weakness multiplier.
+   * Processes damage, applies the 2x Weakness multiplier, and executes hit animations.
    */
   public takeDamage(baseDamage: number, type: Element) {
     let finalDamage = baseDamage;
+    const isWeakness = type === this.weakness;
 
-    // Weakness logic: 2x damage if elements match
-    if (type === this.weakness) {
+    if (isWeakness) {
       finalDamage = baseDamage * 2;
       console.log(
         `%c WEAKNESS! %c ${this.enemyName} took ${finalDamage} damage!`,
@@ -73,10 +94,17 @@ export class Enemy extends ex.Actor {
         'color: default;',
       );
 
-      // Visual feedback: Quick blink
-      this.actions.blink(50, 50, 3);
+      // 💥 High-Impact Weakness: Rapid blinking
+      this.actions.blink(40, 40, 4);
+
+      // Trigger a distinct, noticeable screen shake via the global game context
+      if (game.currentScene && game.currentScene.camera) {
+        game.currentScene.camera.shake(8, 8, 250);
+      }
     } else {
       console.log(`${this.enemyName} took ${finalDamage} damage.`);
+      // Standard damage response flash
+      this.actions.blink(60, 60, 2);
     }
 
     this.currentHp -= finalDamage;
@@ -87,9 +115,12 @@ export class Enemy extends ex.Actor {
     }
   }
 
+  /**
+   * Cleans up world loops, executing an opacity fade out before removing the instance.
+   */
   private handleDeath() {
     console.log(`${this.enemyName} has been banished!`);
-    // Fade out and remove from the game world
-    this.actions.fade(0, 300).die();
+    this.actions.clearActions(); // Interrupt any lingering impact loops cleanly
+    this.actions.fade(0, 350).die();
   }
 }

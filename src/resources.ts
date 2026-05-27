@@ -8,6 +8,8 @@ export const Resources = {
   EnemySprite: new ex.ImageSource('/sprites/enemy.png'),
   GhostSprite: new ex.ImageSource('/sprites/ghost.png'),
   CoinSprite: new ex.ImageSource('/sprites/coin.png'), // Add this if you have a coin asset
+  PixieSprite: new ex.ImageSource('/sprites/pixie.png'),
+  JackFrostSprite: new ex.ImageSource('/sprites/jackfrost.png'),
 
   // Audio Tracks
   BlipSound: new ex.Sound('/sounds/blip.wav'),
@@ -33,4 +35,6 @@ export const loader = new ex.Loader([
   Resources.CoinSprite,
   Resources.BlipSound,
   Resources.ErrorSound,
+  Resources.PixieSprite,
+  Resources.JackFrostSprite,
 ]);
