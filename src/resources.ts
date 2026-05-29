@@ -10,7 +10,7 @@ export const Resources = {
   CoinSprite: new ex.ImageSource('/sprites/coin.png'), // Add this if you have a coin asset
   PixieSprite: new ex.ImageSource('/sprites/pixie.png'),
   JackFrostSprite: new ex.ImageSource('/sprites/jackfrost.png'),
-  BattleBackground: new ex.ImageSource('/images/battle-bg.png'),
+  BattleBackground: new ex.ImageSource('/sprites/battle-bg.png'),
   SlimeSprite: new ex.ImageSource('/sprites/slime.png'),
 
   // Audio Tracks

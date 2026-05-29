@@ -32,41 +32,8 @@ export class BattleHUD extends ex.ScreenElement {
       document.getElementById('battle-turn-status') ||
       document.querySelector('.battle-turn-status');
 
-    // Force engine clear color opacity to prevent default canvas backgrounds from bleeding through
+    // Clear background properties to let underlying scene graphics pass through cleanly
     game.backgroundColor = ex.Color.Transparent;
-
-    // Create a dynamic world actor for the custom background image stage
-    const backgroundImageActor = new ex.Actor({
-      x: game.drawWidth / 2,
-      y: game.drawHeight / 2,
-      width: game.drawWidth,
-      height: game.drawHeight,
-      z: -10, // Pushes it completely behind everything else on the canvas
-    });
-
-    // Pair the loaded image asset directly onto the background actor layer
-    if (Resources.BattleBackground && Resources.BattleBackground.isLoaded()) {
-      const bgSprite = Resources.BattleBackground.toSprite();
-
-      // Forces the sprite asset to stretch perfectly across the configured canvas dimensions
-      bgSprite.destSize = {
-        width: game.drawWidth,
-        height: game.drawHeight,
-      };
-
-      backgroundImageActor.graphics.use(bgSprite);
-    } else {
-      // Emergency solid fallback tile color just in case the asset fails to load over network paths
-      const fallbackGraphic = new ex.Rectangle({
-        width: game.drawWidth,
-        height: game.drawHeight,
-        color: ex.Color.fromHex('#1a1a24'),
-      });
-      backgroundImageActor.graphics.use(fallbackGraphic);
-    }
-
-    // Add the custom background actor to this screen element hierarchy block
-    this.addChild(backgroundImageActor);
 
     game.input.keyboard.on('press', (evt) => {
       if (
@@ -174,15 +141,17 @@ export class BattleHUD extends ex.ScreenElement {
       enemyCard.style.boxShadow = '0 4px 10px rgba(20, 0, 0, 0.4)';
       enemyCard.style.display = 'flex';
       enemyCard.style.flexDirection = 'column';
+      enemyCard.style.width = '140px';
+      enemyCard.style.boxSizing = 'border-box'; // Keeps bars inside borders safely!
 
       enemyCard.innerHTML = `
-      <div class="card-hero-header" style="display: flex; align-items: center; gap: 10px; width: 100%;">
+      <div class="card-hero-header" style="display: flex; align-items: center; gap: 10px; width: 100%; box-sizing: border-box;">
         <div style="
           background-image: url('${spritePath}');
-          width: 64px;
-          height: 64px;
-          min-width: 64px;
-          min-height: 64px;
+          width: 48px;
+          height: 48px;
+          min-width: 48px;
+          min-height: 48px;
           background-size: contain;
           background-repeat: no-repeat;
           background-position: center;
@@ -190,20 +159,21 @@ export class BattleHUD extends ex.ScreenElement {
           border-radius: 4px;
           background-color: rgba(0, 0, 0, 0.5);
           box-sizing: border-box;
+          image-rendering: pixelated;
         "></div>
-        <div class="card-hero-name" style="color: #ff4a4a; font-family: monospace; font-weight: bold;">${enemy.enemyName.toUpperCase()}</div>
+        <div class="card-hero-name" style="color: #ff4a4a; font-family: monospace; font-weight: bold; font-size: 11px; overflow: hidden; text-overflow: ellipsis;">${enemy.enemyName.toUpperCase()}</div>
       </div>
       
-      <div style="font-size: 10px; color: #8c9ba5; font-family: monospace; margin: 8px 0px 8px 0px; text-transform: uppercase; text-align: left; width: 100%;">
+      <div style="font-size: 10px; color: #8c9ba5; font-family: monospace; margin: 4px 0px 8px 0px; text-transform: uppercase; text-align: left; width: 100%;">
         WEAK: ${enemy.weakness || 'NONE'}
       </div>
 
-      <div class="bar-row" style="width: 100%;">
-        <div class="bar-label" style="display: flex; justify-content: space-between; font-family: monospace; font-size: 11px;">
+      <div class="bar-row" style="width: 100%; box-sizing: border-box;">
+        <div class="bar-label" style="display: flex; justify-content: space-between; font-family: monospace; font-size: 10px;">
           <span>HP</span>
           <span>${enemy.currentHp}/${enemy.maxHp}</span>
         </div>
-        <div class="bar-track" style="border: 1px solid #552222; background: #111; height: 8px; border-radius: 3px; overflow: hidden; margin-top: 4px; width: 100%;">
+        <div class="bar-track" style="border: 1px solid #552222; background: #111; height: 6px; border-radius: 3px; overflow: hidden; margin-top: 4px; width: 100%;">
           <div class="bar-fill-hp" style="width: ${hpPercent}%; background: linear-gradient(90deg, #ff3333, #ff5e5e); height: 100%;"></div>
         </div>
       </div>
@@ -544,11 +514,9 @@ export class BattleHUD extends ex.ScreenElement {
       mainHUD.style.display = visible ? 'block' : 'none';
     }
 
-    // Direct graphic overrides to ensure clean layers
+    // Force ALL 2D canvas enemy actors to stay completely invisible so they don't leak into the background scene plane
     this.currentEnemies.forEach((enemy) => {
-      if (enemy.currentHp > 0) {
-        enemy.graphics.visible = visible;
-      }
+      enemy.graphics.visible = false;
     });
 
     this.children.forEach((child) => {

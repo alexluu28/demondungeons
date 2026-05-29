@@ -13,17 +13,49 @@ export class DungeonScene extends ex.Scene {
   private summoner!: Summoner;
   private battleHud!: BattleHUD;
   private explorationHud!: ExplorationHUD;
+  private stageBackground!: ex.Actor; // Track background instance cleanly
   private enemies: Enemy[] = [];
   private isCombatActive: boolean = false;
   private activeEncounterGroup: Enemy[] = [];
 
   override onInitialize() {
-    // 1. Player Setup (Instantiated once)
+    // 1. Create and render the custom stage background image asset onto the Screen layer
+    this.stageBackground = new ex.Actor({
+      x: this.engine.drawWidth / 2,
+      y: this.engine.drawHeight / 2,
+      width: this.engine.drawWidth,
+      height: this.engine.drawHeight,
+      coordPlane: ex.CoordPlane.Screen, // ⚓ Locks it onto the lens window, bypassing camera positions & zoom scales!
+    });
+
+    if (Resources.BattleBackground && Resources.BattleBackground.isLoaded()) {
+      const bgSprite = Resources.BattleBackground.toSprite();
+
+      // Enforce physical vector dimensions matching the canvas screen allocation
+      bgSprite.width = this.engine.drawWidth;
+      bgSprite.height = this.engine.drawHeight;
+      bgSprite.destSize = {
+        width: this.engine.drawWidth,
+        height: this.engine.drawHeight,
+      };
+      this.stageBackground.graphics.use(bgSprite);
+    } else {
+      console.warn(
+        '⚠️ BattleBackground asset state check: Still un-loaded or path broken during setup.',
+      );
+    }
+
+    // Default the battle scene backdrop to invisible during overworld exploration phases
+    this.add(this.stageBackground);
+    this.stageBackground.z = -100;
+    this.stageBackground.graphics.visible = false;
+
+    // 2. Player Setup (Instantiated once)
     this.summoner = new Summoner(0, 0);
     this.summoner.name = 'Summoner';
     this.add(this.summoner);
 
-    // 2. Persistent UI Elements Setup
+    // 3. Persistent UI Elements Setup
     this.explorationHud = new ExplorationHUD();
     this.add(this.explorationHud);
 
@@ -60,13 +92,22 @@ export class DungeonScene extends ex.Scene {
     this.summoner.canMove = false;
     this.activeEncounterGroup = enemyGroup;
 
+    // Center background actor relative to current viewport lens coordinates
+    this.stageBackground.pos.x = this.engine.drawWidth / 2;
+    this.stageBackground.pos.y = this.engine.drawHeight / 2;
+    this.stageBackground.graphics.visible = true;
+
     // Hide world visuals and persistent HTML exploration HUD elements
     this.explorationHud.graphics.visible = false;
     const htmlHud = document.getElementById('exploration-html-hud');
     if (htmlHud) htmlHud.style.display = 'none';
 
     this.entities.forEach((entity) => {
-      if (entity instanceof ex.Actor && !(entity instanceof BattleHUD)) {
+      if (
+        entity instanceof ex.Actor &&
+        !(entity instanceof BattleHUD) &&
+        entity !== this.stageBackground
+      ) {
         entity.graphics.visible = false;
       }
     });
@@ -79,6 +120,9 @@ export class DungeonScene extends ex.Scene {
   public endCombat(defeatedGroup?: Enemy[]) {
     this.isCombatActive = false;
     this.explorationHud.graphics.visible = true;
+
+    // Hide combat backdrop cleanly to restore regular map sightlines
+    this.stageBackground.graphics.visible = false;
 
     const enemiesDefeated =
       defeatedGroup && defeatedGroup.length > 0 ? defeatedGroup.length : 3;
@@ -116,7 +160,8 @@ export class DungeonScene extends ex.Scene {
       if (
         entity instanceof ex.Actor &&
         !entity.isKilled() &&
-        !(entity instanceof BattleHUD)
+        !(entity instanceof BattleHUD) &&
+        entity !== this.stageBackground
       ) {
         entity.graphics.visible = true;
       }
@@ -307,7 +352,11 @@ export class DungeonScene extends ex.Scene {
 
     const actorsToRemove = this.actors.filter((actor) => {
       if (actor === this.summoner || actor.name === 'Summoner') return false;
-      if (actor instanceof BattleHUD || actor instanceof ExplorationHUD)
+      if (
+        actor instanceof BattleHUD ||
+        actor instanceof ExplorationHUD ||
+        actor === this.stageBackground
+      )
         return false;
       return true;
     });
