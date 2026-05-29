@@ -32,14 +32,41 @@ export class BattleHUD extends ex.ScreenElement {
       document.getElementById('battle-turn-status') ||
       document.querySelector('.battle-turn-status');
 
-    // Setup background mask element safely at base canvas bounds
-    const background = new ex.ScreenElement({
+    // Force engine clear color opacity to prevent default canvas backgrounds from bleeding through
+    game.backgroundColor = ex.Color.Transparent;
+
+    // Create a dynamic world actor for the custom background image stage
+    const backgroundImageActor = new ex.Actor({
+      x: game.drawWidth / 2,
+      y: game.drawHeight / 2,
       width: game.drawWidth,
       height: game.drawHeight,
-      color: ex.Color.fromHex('#0a0a0a'),
-      z: -2,
+      z: -10, // Pushes it completely behind everything else on the canvas
     });
-    this.addChild(background);
+
+    // Pair the loaded image asset directly onto the background actor layer
+    if (Resources.BattleBackground && Resources.BattleBackground.isLoaded()) {
+      const bgSprite = Resources.BattleBackground.toSprite();
+
+      // Forces the sprite asset to stretch perfectly across the configured canvas dimensions
+      bgSprite.destSize = {
+        width: game.drawWidth,
+        height: game.drawHeight,
+      };
+
+      backgroundImageActor.graphics.use(bgSprite);
+    } else {
+      // Emergency solid fallback tile color just in case the asset fails to load over network paths
+      const fallbackGraphic = new ex.Rectangle({
+        width: game.drawWidth,
+        height: game.drawHeight,
+        color: ex.Color.fromHex('#1a1a24'),
+      });
+      backgroundImageActor.graphics.use(fallbackGraphic);
+    }
+
+    // Add the custom background actor to this screen element hierarchy block
+    this.addChild(backgroundImageActor);
 
     game.input.keyboard.on('press', (evt) => {
       if (
@@ -108,7 +135,7 @@ export class BattleHUD extends ex.ScreenElement {
   }
 
   /**
-   * Renders enemy layout status cards along with their respective visual sprites into a clean row.
+   * Renders enemy layout status cards into a clean, horizontal row mirroring the party UI structure.
    */
   private refreshEnemyUI() {
     if (!this.enemyContainerElement) return;
@@ -116,12 +143,12 @@ export class BattleHUD extends ex.ScreenElement {
     const enemyContainer = this.enemyContainerElement;
     enemyContainer.innerHTML = '';
 
-    // Center format directly across the top middle
+    // Enforce horizontal layout properties matching your original HUD configuration
     enemyContainer.style.display = 'flex';
     enemyContainer.style.flexDirection = 'row';
     enemyContainer.style.gap = '20px';
     enemyContainer.style.position = 'absolute';
-    enemyContainer.style.top = '220px'; // Shifted up slightly to leave comfortable room for sprites
+    enemyContainer.style.top = '240px';
     enemyContainer.style.left = '160px';
 
     if (this.currentEnemies.length === 0) return;
@@ -131,49 +158,56 @@ export class BattleHUD extends ex.ScreenElement {
 
       const hpPercent = Math.max(0, (enemy.currentHp / enemy.maxHp) * 100);
 
-      // Clean up string to find the correct asset image path
       const spriteFileName =
         enemy.enemyName.toLowerCase().replace(/\s+/g, '') + '.png';
       const spritePath = `/sprites/${spriteFileName}`;
 
       const enemyCard = document.createElement('div');
-      // Assign an ID so we can easily target this specific card for local hit shakes!
+      // Assign the ID to keep your working HTML shake impact animations happy!
       enemyCard.id = `enemy-card-${i}`;
-      enemyCard.className = 'enemy-status-card';
-      enemyCard.style.width = '140px';
+
+      // Use your exact CSS class names from the party status cards
+      enemyCard.className = 'party-status-card';
+
+      // Slight modifications to make it fit your enemy specifications and expand the sprite dimensions
+      enemyCard.style.borderColor = '#ff4a4a'; // Red enemy identifier border
+      enemyCard.style.boxShadow = '0 4px 10px rgba(20, 0, 0, 0.4)';
       enemyCard.style.display = 'flex';
       enemyCard.style.flexDirection = 'column';
-      enemyCard.style.alignItems = 'center';
 
-      // HTML Injection handling both the centered sprite image and status tracking bars cleanly
       enemyCard.innerHTML = `
-        <div class="enemy-sprite-preview" style="
-          width: 48px; 
-          height: 48px; 
-          background-image: url('${spritePath}'); 
-          background-size: contain; 
-          background-repeat: no-repeat; 
-          background-position: center;
-          margin-bottom: 8px;
-        "></div>
-
+      <div class="card-hero-header" style="display: flex; align-items: center; gap: 10px; width: 100%;">
         <div style="
-          width: 100%;
-          background: rgba(20, 10, 10, 0.85);
+          background-image: url('${spritePath}');
+          width: 64px;
+          height: 64px;
+          min-width: 64px;
+          min-height: 64px;
+          background-size: contain;
+          background-repeat: no-repeat;
+          background-position: center;
           border: 2px solid #ff4a4a;
-          border-radius: 6px;
-          padding: 8px;
-          box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+          border-radius: 4px;
+          background-color: rgba(0, 0, 0, 0.5);
           box-sizing: border-box;
-        ">
-          <div class="card-hero-name" style="color: #ff4a4a; font-weight: bold; font-size: 12px; font-family: monospace;">${enemy.enemyName.toUpperCase()}</div>
-          <div style="font-size: 10px; color: #8c9ba5; font-family: monospace; margin-top: 1px;">WEAK: ${enemy.weakness?.toUpperCase() || 'NONE'}</div>
-          <div class="bar-track" style="margin-top: 6px; background: #111; height: 6px; border-radius: 3px; overflow: hidden; border: 1px solid #333;">
-            <div class="bar-fill-hp" style="width: ${hpPercent}%; background: linear-gradient(90deg, #ff3333, #ff5e5e); height: 100%;"></div>
-          </div>
-          <div style="font-size: 10px; color: #ffffff; text-align: right; font-family: monospace; margin-top: 4px;">HP: ${enemy.currentHp}/${enemy.maxHp}</div>
+        "></div>
+        <div class="card-hero-name" style="color: #ff4a4a; font-family: monospace; font-weight: bold;">${enemy.enemyName.toUpperCase()}</div>
+      </div>
+      
+      <div style="font-size: 10px; color: #8c9ba5; font-family: monospace; margin: 8px 0px 8px 0px; text-transform: uppercase; text-align: left; width: 100%;">
+        WEAK: ${enemy.weakness || 'NONE'}
+      </div>
+
+      <div class="bar-row" style="width: 100%;">
+        <div class="bar-label" style="display: flex; justify-content: space-between; font-family: monospace; font-size: 11px;">
+          <span>HP</span>
+          <span>${enemy.currentHp}/${enemy.maxHp}</span>
         </div>
-      `;
+        <div class="bar-track" style="border: 1px solid #552222; background: #111; height: 8px; border-radius: 3px; overflow: hidden; margin-top: 4px; width: 100%;">
+          <div class="bar-fill-hp" style="width: ${hpPercent}%; background: linear-gradient(90deg, #ff3333, #ff5e5e); height: 100%;"></div>
+        </div>
+      </div>
+    `;
 
       enemyContainer.appendChild(enemyCard);
     });
