@@ -19,25 +19,36 @@ export class DungeonScene extends ex.Scene {
   private activeEncounterGroup: Enemy[] = [];
 
   override onInitialize() {
-    // 1. Create and render the custom stage background image asset onto the Screen layer
+    // Get the exact, unscaled viewport dimensions from the engine screen resolution
+    const viewWidth = this.engine.screen.resolution.width;
+    const viewHeight = this.engine.screen.resolution.height;
+
+    // 1. Create the custom stage background image actor locked to the top-left corner
     this.stageBackground = new ex.Actor({
-      x: this.engine.drawWidth / 2,
-      y: this.engine.drawHeight / 2,
-      width: this.engine.drawWidth,
-      height: this.engine.drawHeight,
-      coordPlane: ex.CoordPlane.Screen, // ⚓ Locks it onto the lens window, bypassing camera positions & zoom scales!
+      x: 0,
+      y: 0,
+      width: viewWidth,
+      height: viewHeight,
+      coordPlane: ex.CoordPlane.Screen,
     });
+
+    // Anchor the physical Actor to its top-left corner
+    this.stageBackground.anchor = ex.vec(0, 0);
 
     if (Resources.BattleBackground && Resources.BattleBackground.isLoaded()) {
       const bgSprite = Resources.BattleBackground.toSprite();
 
-      // Enforce physical vector dimensions matching the canvas screen allocation
-      bgSprite.width = this.engine.drawWidth;
-      bgSprite.height = this.engine.drawHeight;
+      // Anchor the Sprite graphic itself to its top-left corner
+      bgSprite.origin = ex.vec(0, 0);
+
+      // Stretch the image dimensions completely across the full screen window
+      bgSprite.width = viewWidth;
+      bgSprite.height = viewHeight;
       bgSprite.destSize = {
-        width: this.engine.drawWidth,
-        height: this.engine.drawHeight,
+        width: viewWidth,
+        height: viewHeight,
       };
+
       this.stageBackground.graphics.use(bgSprite);
     } else {
       console.warn(
@@ -92,9 +103,7 @@ export class DungeonScene extends ex.Scene {
     this.summoner.canMove = false;
     this.activeEncounterGroup = enemyGroup;
 
-    // Center background actor relative to current viewport lens coordinates
-    this.stageBackground.pos.x = this.engine.drawWidth / 2;
-    this.stageBackground.pos.y = this.engine.drawHeight / 2;
+    // It is perfectly anchored at (0,0) on the screen now, just make it visible!
     this.stageBackground.graphics.visible = true;
 
     // Hide world visuals and persistent HTML exploration HUD elements
