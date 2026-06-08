@@ -19,25 +19,23 @@ export class DungeonScene extends ex.Scene {
   private activeEncounterGroup: Enemy[] = [];
 
   override onInitialize() {
-    // 1. Create and render the custom stage background image asset onto the Screen layer
+    // 1. Create the custom stage background image actor anchored to the top-left screen canvas space
     this.stageBackground = new ex.Actor({
-      x: this.engine.drawWidth / 2,
-      y: this.engine.drawHeight / 2,
-      width: this.engine.drawWidth,
-      height: this.engine.drawHeight,
-      coordPlane: ex.CoordPlane.Screen, // ⚓ Locks it onto the lens window, bypassing camera positions & zoom scales!
+      x: 0,
+      y: 0,
+      width: this.engine.screen.resolution.width || 800,
+      height: this.engine.screen.resolution.height || 600,
+      coordPlane: ex.CoordPlane.Screen,
     });
+
+    // Anchor the physical Actor to its top-left corner
+    this.stageBackground.anchor = ex.vec(0, 0);
 
     if (Resources.BattleBackground && Resources.BattleBackground.isLoaded()) {
       const bgSprite = Resources.BattleBackground.toSprite();
 
-      // Enforce physical vector dimensions matching the canvas screen allocation
-      bgSprite.width = this.engine.drawWidth;
-      bgSprite.height = this.engine.drawHeight;
-      bgSprite.destSize = {
-        width: this.engine.drawWidth,
-        height: this.engine.drawHeight,
-      };
+      // Anchor the Sprite graphic itself to its top-left corner
+      bgSprite.origin = ex.vec(0, 0);
       this.stageBackground.graphics.use(bgSprite);
     } else {
       console.warn(
@@ -92,9 +90,7 @@ export class DungeonScene extends ex.Scene {
     this.summoner.canMove = false;
     this.activeEncounterGroup = enemyGroup;
 
-    // Center background actor relative to current viewport lens coordinates
-    this.stageBackground.pos.x = this.engine.drawWidth / 2;
-    this.stageBackground.pos.y = this.engine.drawHeight / 2;
+    // It is perfectly anchored at (0,0) on the screen now, just make it visible!
     this.stageBackground.graphics.visible = true;
 
     // Hide world visuals and persistent HTML exploration HUD elements
@@ -321,6 +317,27 @@ export class DungeonScene extends ex.Scene {
     });
   }
 
+  // Dynamic window adjustments hooked runtime frame iterations
+  override onPostUpdate() {
+    if (
+      this.isCombatActive &&
+      this.stageBackground &&
+      this.stageBackground.graphics.current
+    ) {
+      const currentWidth = this.engine.screen.resolution.width;
+      const currentHeight = this.engine.screen.resolution.height;
+
+      // Typecast our Graphic base type directly to an ex.Sprite type safely
+      const activeSprite = this.stageBackground.graphics.current as ex.Sprite;
+
+      if (activeSprite) {
+        activeSprite.width = currentWidth;
+        activeSprite.height = currentHeight;
+        activeSprite.destSize = { width: currentWidth, height: currentHeight };
+      }
+    }
+  }
+
   private initStairsCollision(summoner: ex.Actor) {
     summoner.on('collisionstart', (evt) => {
       if (evt.other.owner && evt.other.owner.name === 'Stairs') {
@@ -350,12 +367,14 @@ export class DungeonScene extends ex.Scene {
     // Commit progress to browser storage immediately upon advancing layout levels
     state.saveGame();
 
+    // Preserve UI assets from the clean-up sweeping array
     const actorsToRemove = this.actors.filter((actor) => {
       if (actor === this.summoner || actor.name === 'Summoner') return false;
       if (
         actor instanceof BattleHUD ||
         actor instanceof ExplorationHUD ||
-        actor === this.stageBackground
+        actor === this.stageBackground ||
+        actor.name === 'ExplorationHUD'
       )
         return false;
       return true;
@@ -379,6 +398,18 @@ export class DungeonScene extends ex.Scene {
       this.camera.strategy.lockToActor(this.summoner);
       this.camera.zoom = 1.5;
     }
+
+    // Force HTML UI elements to synchronize and update their visible variables seamlessly
+    const htmlHud = document.getElementById('exploration-html-hud');
+    if (htmlHud) {
+      htmlHud.style.display = 'block';
+    }
+
+    const floorTextElement = document.getElementById('hud-floor-text');
+    const coinTextElement = document.getElementById('hud-coin-text');
+
+    if (floorTextElement) floorTextElement.innerText = `B${state.currentFloor}`;
+    if (coinTextElement) coinTextElement.innerText = `${state.totalCoins}`;
 
     console.log(`Floor B${state.currentFloor} initialized successfully!`);
   }
