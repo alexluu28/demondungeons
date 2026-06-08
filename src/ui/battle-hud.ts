@@ -3,6 +3,7 @@ import { Enemy } from '../actors/enemy';
 import { Resources, game } from '../resources';
 import { Element } from '../types/combat';
 import { state } from '../state'; // Imported state singleton tracking instance
+import { Card, CardValidator } from '../logic/card-validator';
 
 export class BattleHUD extends ex.ScreenElement {
   private currentParty: any[] = [];
@@ -11,11 +12,18 @@ export class BattleHUD extends ex.ScreenElement {
   private isProcessingVictory: boolean = false;
   private isEnemyTurn: boolean = false;
 
+  // 🃏 Card Battler System States
+  private playerHand: Card[] = [];
+  private selectedCards: Card[] = [];
+
   // UI HTML DOM Elements
   private logFeedElement: HTMLElement | null = null;
   private partyRowElement: HTMLElement | null = null;
   private enemyContainerElement: HTMLElement | null = null;
   private turnStatusElement: HTMLElement | null = null;
+  private cardsContainerElement: HTMLElement | null = null;
+  private playHandButton: HTMLButtonElement | null = null;
+  private passTurnButton: HTMLButtonElement | null = null;
 
   public onVictory?: () => void;
 
@@ -32,47 +40,136 @@ export class BattleHUD extends ex.ScreenElement {
       document.getElementById('battle-turn-status') ||
       document.querySelector('.battle-turn-status');
 
+    // 🃏 Core Card UI DOM Bindings
+    this.cardsContainerElement = document.getElementById(
+      'cards-in-hand-container',
+    );
+    this.playHandButton = document.getElementById(
+      'btn-play-hand',
+    ) as HTMLButtonElement;
+    this.passTurnButton = document.getElementById(
+      'btn-pass-turn',
+    ) as HTMLButtonElement;
+
     // Clear background properties to let underlying scene graphics pass through cleanly
     game.backgroundColor = ex.Color.Transparent;
 
-    game.input.keyboard.on('press', (evt) => {
-      if (
-        !this.graphics.visible ||
-        this.isProcessingVictory ||
-        this.isEnemyTurn
-      )
-        return;
-
-      if (evt.key === ex.Keys.Digit1 || evt.key === ex.Keys.Num1)
-        this.executeSkill(0);
-      if (evt.key === ex.Keys.Digit2 || evt.key === ex.Keys.Num2)
-        this.executeSkill(1);
-    });
+    // Set up standalone button action bindings
+    if (this.playHandButton) {
+      this.playHandButton.onclick = () => this.executeCardComboAttack();
+    }
+    if (this.passTurnButton) {
+      this.passTurnButton.onclick = () => {
+        if (
+          !this.graphics.visible ||
+          this.isProcessingVictory ||
+          this.isEnemyTurn
+        )
+          return;
+        this.pushLog('✦ Player decided to pass strategy phase.', 'system');
+        this.enemyTurn();
+      };
+    }
 
     this.graphics.visible = false;
   }
 
   /**
-   * Refreshes and positions enemy actors horizontally across the top-middle canvas stage area.
-   * Suppressed: Visual sprites are now fully decoupled from Excalibur canvas layers
-   * and rendered inside HTML templates to resolve layout occlusion bugs.
+   * Generates a fully randomized, pre-sorted opening hand of 13 cards matching Vietnamese rules.
    */
+  private generateOpeningHand() {
+    this.selectedCards = [];
+    this.playerHand = [];
+
+    const suits: Card['suit'][] = ['SPADES', 'CLUBS', 'DIAMONDS', 'HEARTS'];
+    const suitSymbols = { SPADES: '♠', CLUBS: '♣', DIAMONDS: '♦', HEARTS: '♥' };
+
+    for (let i = 0; i < 13; i++) {
+      const randomValue = Math.floor(Math.random() * 13) + 3; // Card values from 3 to 15 (2)
+      const randomSuit = suits[Math.floor(Math.random() * suits.length)];
+
+      this.playerHand.push({
+        id: `card_${i}_${Date.now()}_${Math.random()}`,
+        suit: randomSuit,
+        value: randomValue,
+        name: `${CardValidator.getCardName(randomValue)}${suitSymbols[randomSuit]}`,
+      });
+    }
+
+    // Natively organize hand rank ascending on deal
+    this.playerHand = CardValidator.sortCards(this.playerHand);
+  }
+
+  /**
+   * Refreshes the HTML Card HUD Row, syncing click listeners, hover transforms, and selection calculations.
+   */
+  private renderPlayerHandUI() {
+    if (!this.cardsContainerElement) return;
+
+    const container = this.cardsContainerElement;
+    container.innerHTML = '';
+
+    // Suppress drawing layout changes if it is the enemy's phase
+    if (this.isEnemyTurn) {
+      if (this.playHandButton) this.playHandButton.disabled = true;
+      container.innerHTML = `<div style="color: #8c9ba5; font-size: 12px; margin-bottom: 40px; letter-spacing: 1px;">ENEMY COMBAT RESOLUTION IN PROGRESS...</div>`;
+      return;
+    }
+
+    this.playerHand.forEach((card) => {
+      const cardEl = document.createElement('div');
+      const isSelected = this.selectedCards.some((c) => c.id === card.id);
+
+      cardEl.className = `game-card card-suit-${card.suit} ${isSelected ? 'selected' : ''}`;
+      cardEl.innerHTML = `
+        <div class="card-corner-top">${card.name}</div>
+        <div class="card-center-icon">${card.name.slice(-1)}</div>
+        <div class="card-corner-bottom" style="transform: rotate(180deg);">${card.name}</div>
+      `;
+
+      // Interactive Toggle Loop
+      cardEl.onclick = () => {
+        if (isSelected) {
+          this.selectedCards = this.selectedCards.filter(
+            (c) => c.id !== card.id,
+          );
+        } else {
+          this.selectedCards.push(card);
+        }
+
+        // Live-evaluate combo properties on click to update buttons reactively
+        const evaluation = CardValidator.evaluateHand(this.selectedCards);
+        if (this.playHandButton) {
+          this.playHandButton.disabled = evaluation.type === 'INVALID';
+          this.playHandButton.innerText =
+            evaluation.type !== 'INVALID'
+              ? `PLAY ${evaluation.type} (${evaluation.element})`
+              : 'PLAY SELECTION';
+        }
+
+        this.renderPlayerHandUI();
+      };
+
+      container.appendChild(cardEl);
+    });
+
+    // Handle button reset defaults for empty states
+    if (this.selectedCards.length === 0 && this.playHandButton) {
+      this.playHandButton.disabled = true;
+      this.playHandButton.innerText = 'PLAY SELECTION';
+    }
+  }
+
   private syncEnemyCanvasPositions() {
     // Left empty intentionally to prevent rogue canvas actors rendering behind panels
   }
 
-  /**
-   * Updates the center-top turn banner status smoothly via HTML stylings.
-   */
   private updateTurnStatus(text: string, colorHex: string) {
     if (!this.turnStatusElement) return;
     this.turnStatusElement.innerText = text.toUpperCase();
     this.turnStatusElement.style.color = colorHex;
   }
 
-  /**
-   * Helper utility to print combat events directly to the HTML scrolling log frame.
-   */
   public pushLog(
     message: string,
     type: 'player' | 'enemy' | 'weak' | 'system' = 'system',
@@ -101,21 +198,17 @@ export class BattleHUD extends ex.ScreenElement {
     this.refreshEnemyUI();
   }
 
-  /**
-   * Renders enemy layout status cards into a clean, horizontal row mirroring the party UI structure.
-   */
   private refreshEnemyUI() {
     if (!this.enemyContainerElement) return;
 
     const enemyContainer = this.enemyContainerElement;
     enemyContainer.innerHTML = '';
 
-    // Enforce horizontal layout properties matching your original HUD configuration
     enemyContainer.style.display = 'flex';
     enemyContainer.style.flexDirection = 'row';
     enemyContainer.style.gap = '20px';
     enemyContainer.style.position = 'absolute';
-    enemyContainer.style.top = '240px';
+    enemyContainer.style.top = '220px'; // Lowered slightly to maximize overworld canvas viewing space
     enemyContainer.style.left = '160px';
 
     if (this.currentEnemies.length === 0) return;
@@ -124,25 +217,19 @@ export class BattleHUD extends ex.ScreenElement {
       if (enemy.currentHp <= 0) return;
 
       const hpPercent = Math.max(0, (enemy.currentHp / enemy.maxHp) * 100);
-
       const spriteFileName =
         enemy.enemyName.toLowerCase().replace(/\s+/g, '') + '.png';
       const spritePath = `/sprites/${spriteFileName}`;
 
       const enemyCard = document.createElement('div');
-      // Assign the ID to keep your working HTML shake impact animations happy!
       enemyCard.id = `enemy-card-${i}`;
-
-      // Use your exact CSS class names from the party status cards
       enemyCard.className = 'party-status-card';
-
-      // Slight modifications to make it fit your enemy specifications and expand the sprite dimensions
-      enemyCard.style.borderColor = '#ff4a4a'; // Red enemy identifier border
+      enemyCard.style.borderColor = '#ff4a4a';
       enemyCard.style.boxShadow = '0 4px 10px rgba(20, 0, 0, 0.4)';
       enemyCard.style.display = 'flex';
       enemyCard.style.flexDirection = 'column';
       enemyCard.style.width = '140px';
-      enemyCard.style.boxSizing = 'border-box'; // Keeps bars inside borders safely!
+      enemyCard.style.boxSizing = 'border-box';
 
       enemyCard.innerHTML = `
       <div class="card-hero-header" style="display: flex; align-items: center; gap: 10px; width: 100%; box-sizing: border-box;">
@@ -188,16 +275,22 @@ export class BattleHUD extends ex.ScreenElement {
     this.currentTurnIndex = 0;
 
     this.clearLog();
-    this.pushLog('⚔️ Combat Initiation... Rolling Initiative!', 'system');
+    this.pushLog('⚔️ Card Battle Initiated... Hand Dealt!', 'system');
 
     this.isEnemyTurn = false;
+
+    // Deal 13 fresh cards to open up combat
+    this.generateOpeningHand();
+
     const activeDemon = this.currentParty[this.currentTurnIndex];
     this.updateTurnStatus(`${activeDemon?.name}'s Turn`, '#00ffcc');
     this.pushLog(
-      `✦ Player advantage secured! ${activeDemon?.name.toUpperCase()} prepares an action.`,
+      `✦ Player advantaged phase. Assemble card combos to direct ${activeDemon?.name.toUpperCase()}'s attacks.`,
       'player',
     );
+
     this.refreshPartyUI();
+    this.renderPlayerHandUI();
   }
 
   private refreshPartyUI() {
@@ -246,41 +339,7 @@ export class BattleHUD extends ex.ScreenElement {
     `;
 
       partyRow.appendChild(card);
-
-      if (isCurrent) this.createSkillMenu(demon.skills);
     });
-  }
-
-  /**
-   * Generates localized selection action buttons inside the active player frame space
-   */
-  private createSkillMenu(skills: string[]) {
-    const activeCard = this.partyRowElement?.querySelector(
-      '.party-status-card.active-turn',
-    );
-    if (!activeCard) return;
-
-    const skillMenuWrapper = document.createElement('div');
-    skillMenuWrapper.className = 'skill-menu-wrapper';
-    skillMenuWrapper.style.marginTop = '10px';
-    skillMenuWrapper.style.display = 'flex';
-    skillMenuWrapper.style.flexDirection = 'column';
-    skillMenuWrapper.style.gap = '4px';
-
-    skills.forEach((skill, i) => {
-      const btn = document.createElement('button');
-      btn.className = 'battle-skill-btn';
-      btn.style.width = '100%';
-      btn.style.padding = '4px 8px';
-      btn.style.fontSize = '11px';
-      btn.style.textAlign = 'left';
-      btn.innerText = `${i + 1}. ${skill.toUpperCase()}`;
-
-      btn.onclick = () => this.executeSkill(i);
-      skillMenuWrapper.appendChild(btn);
-    });
-
-    activeCard.appendChild(skillMenuWrapper);
   }
 
   private showVictoryState() {
@@ -354,34 +413,49 @@ export class BattleHUD extends ex.ScreenElement {
     }, 3000);
   }
 
-  private executeSkill(skillIndex: number) {
-    const activeDemon = this.currentParty[this.currentTurnIndex];
-    if (!activeDemon || !activeDemon.skills[skillIndex]) return;
+  /**
+   * Evaluates the selected cards, calculates the damage payload, and executes the attack.
+   */
+  private executeCardComboAttack() {
+    if (this.isEnemyTurn || this.isProcessingVictory) return;
 
-    const skillName = activeDemon.skills[skillIndex].toLowerCase();
+    const activeDemon = this.currentParty[this.currentTurnIndex];
+    if (!activeDemon) return;
+
+    const evaluation = CardValidator.evaluateHand(this.selectedCards);
+    if (evaluation.type === 'INVALID') return;
+
     const aliveEnemies = this.currentEnemies.filter((e) => e.currentHp > 0);
     const target = aliveEnemies[0];
 
     if (target) {
-      let damageType = Element.Physical;
-      if (skillName === 'zio') damageType = Element.Electric;
-      if (skillName === 'bufu') damageType = Element.Ice;
-      if (skillName === 'agi') damageType = Element.Fire;
+      // Map the card valuation elements to your system affinity rules
+      let elementAffinity = Element.Physical;
+      if (evaluation.element === 'ZIO') elementAffinity = Element.Electric;
+      if (evaluation.element === 'BUFUX') elementAffinity = Element.Ice;
+      if (evaluation.element === 'AGI') elementAffinity = Element.Fire;
 
-      // Track exact position index of current enemy target
       const targetIndex = this.currentEnemies.indexOf(target);
 
       this.pushLog(
-        `${activeDemon.name.toUpperCase()} casted ${skillName.toUpperCase()} on ${target.enemyName.toUpperCase()}!`,
+        `🃏 ${activeDemon.name.toUpperCase()} plays a ${evaluation.type} (${evaluation.element}) dealing ${Math.round(evaluation.power)} DMG to ${target.enemyName.toUpperCase()}!`,
         'player',
       );
-      target.takeDamage(25, damageType);
+
+      target.takeDamage(Math.round(evaluation.power), elementAffinity);
 
       if (Resources.BlipSound.isLoaded()) Resources.BlipSound.play(0.3);
 
+      // Discard played cards out of player's hand state
+      this.playerHand = this.playerHand.filter(
+        (card) =>
+          !this.selectedCards.some((selected) => selected.id === card.id),
+      );
+
+      this.selectedCards = [];
       this.refreshEnemyUI();
 
-      // 💥 TRIGGER HTML SHAKE IMPACT EFFECT DIRECTLY ON THE ELEMENT
+      // Trigger structural HTML shake animation on target element card
       const targetCard = document.getElementById(`enemy-card-${targetIndex}`);
       if (targetCard) {
         targetCard.animate(
@@ -393,15 +467,11 @@ export class BattleHUD extends ex.ScreenElement {
             { transform: 'translateX(10px)' },
             { transform: 'translateX(0px)' },
           ],
-          {
-            duration: 200,
-            iterations: 1,
-          },
+          { duration: 200, iterations: 1 },
         );
       }
 
       const stillAlive = this.currentEnemies.filter((e) => e.currentHp > 0);
-
       if (stillAlive.length === 0) {
         this.pushLog(`🏆 All hostile targets neutralized!`, 'system');
         this.showVictoryState();
@@ -409,24 +479,30 @@ export class BattleHUD extends ex.ScreenElement {
       }
 
       const hitWeakness =
-        target.weakness.toLowerCase() === damageType.toLowerCase();
+        target.weakness.toLowerCase() === elementAffinity.toLowerCase();
 
       if (hitWeakness) {
         this.updateTurnStatus(`${activeDemon.name} (1 MORE)`, '#ffcc00');
         this.pushLog(
-          `✨ WEAKNESS STRIKE! ${target.enemyName.toUpperCase()} staggered! 1 More Turn granted!`,
+          `✨ WEAKNESS BREAKTHROUGH! ${target.enemyName.toUpperCase()} staggered! 1 Extra Combo permitted!`,
           'weak',
         );
         this.refreshPartyUI();
+        this.renderPlayerHandUI();
       } else {
         this.currentTurnIndex++;
 
-        if (this.currentTurnIndex >= this.currentParty.length) {
+        // If your cards run dry mid-fight, force-rotate priority to the enemy phase
+        if (
+          this.currentTurnIndex >= this.currentParty.length ||
+          this.playerHand.length === 0
+        ) {
           this.enemyTurn();
         } else {
           const nextDemon = this.currentParty[this.currentTurnIndex];
           this.updateTurnStatus(`${nextDemon?.name}'s Turn`, '#00ffcc');
           this.refreshPartyUI();
+          this.renderPlayerHandUI();
         }
       }
     }
@@ -434,7 +510,9 @@ export class BattleHUD extends ex.ScreenElement {
 
   public async enemyTurn() {
     this.isEnemyTurn = true;
+    this.selectedCards = []; // Wipe any unresolved selection buffers
     this.refreshPartyUI();
+    this.renderPlayerHandUI();
 
     const aliveEnemies = this.currentEnemies.filter((e) => e.currentHp > 0);
     if (aliveEnemies.length === 0) return;
@@ -469,16 +547,16 @@ export class BattleHUD extends ex.ScreenElement {
           target.weakness &&
           target.weakness.toLowerCase() === enemyElement.toLowerCase()
         ) {
-          // Trigger an intense screen shudder when the player takes heavy weakness damage
           game.currentScene.camera.shake(8, 8, 250);
-
           this.updateTurnStatus(`ENEMY WEAKNESS STRIKE!`, '#ffcc00');
           this.pushLog(
             `⚠️ CRITICAL PUNISHMENT! Weakness struck on ${target.name.toUpperCase()}!`,
             'weak',
           );
+
           target.hp = Math.max(0, target.hp - 5);
           this.refreshPartyUI();
+
           if (target.hp <= 0) {
             this.pushLog(
               `💀 ${target.name.toUpperCase()} collapsed in battle!`,
@@ -493,13 +571,24 @@ export class BattleHUD extends ex.ScreenElement {
       }
     }
 
+    // Top up card reserves back to full hand capacity if it dropped too low for structural combinations
+    if (this.playerHand.length < 5) {
+      this.pushLog(
+        '🃏 Low card inventory detected. Replenishing deck reserves...',
+        'system',
+      );
+      this.generateOpeningHand();
+    }
+
     this.isEnemyTurn = false;
     this.currentTurnIndex = 0;
 
     const leadCharacter = this.currentParty[0];
     this.updateTurnStatus(`${leadCharacter?.name}'s Turn`, '#00ffcc');
     this.pushLog(`✦ Player Phase restored. Choose your actions.`, 'player');
+
     this.refreshPartyUI();
+    this.renderPlayerHandUI();
   }
 
   update() {
@@ -514,7 +603,6 @@ export class BattleHUD extends ex.ScreenElement {
       mainHUD.style.display = visible ? 'block' : 'none';
     }
 
-    // Force ALL 2D canvas enemy actors to stay completely invisible so they don't leak into the background scene plane
     this.currentEnemies.forEach((enemy) => {
       enemy.graphics.visible = false;
     });
@@ -529,6 +617,7 @@ export class BattleHUD extends ex.ScreenElement {
       this.syncEnemyCanvasPositions();
       this.refreshEnemyUI();
       this.refreshPartyUI();
+      this.renderPlayerHandUI();
     }
   }
 
