@@ -19,16 +19,12 @@ export class DungeonScene extends ex.Scene {
   private activeEncounterGroup: Enemy[] = [];
 
   override onInitialize() {
-    // Get the exact, unscaled viewport dimensions from the engine screen resolution
-    const viewWidth = this.engine.screen.resolution.width;
-    const viewHeight = this.engine.screen.resolution.height;
-
-    // 1. Create the custom stage background image actor locked to the top-left corner
+    // 1. Create the custom stage background image actor anchored to the top-left screen canvas space
     this.stageBackground = new ex.Actor({
       x: 0,
       y: 0,
-      width: viewWidth,
-      height: viewHeight,
+      width: this.engine.screen.resolution.width || 800,
+      height: this.engine.screen.resolution.height || 600,
       coordPlane: ex.CoordPlane.Screen,
     });
 
@@ -40,15 +36,6 @@ export class DungeonScene extends ex.Scene {
 
       // Anchor the Sprite graphic itself to its top-left corner
       bgSprite.origin = ex.vec(0, 0);
-
-      // Stretch the image dimensions completely across the full screen window
-      bgSprite.width = viewWidth;
-      bgSprite.height = viewHeight;
-      bgSprite.destSize = {
-        width: viewWidth,
-        height: viewHeight,
-      };
-
       this.stageBackground.graphics.use(bgSprite);
     } else {
       console.warn(
@@ -330,6 +317,27 @@ export class DungeonScene extends ex.Scene {
     });
   }
 
+  // Dynamic window adjustments hooked runtime frame iterations
+  override onPostUpdate() {
+    if (
+      this.isCombatActive &&
+      this.stageBackground &&
+      this.stageBackground.graphics.current
+    ) {
+      const currentWidth = this.engine.screen.resolution.width;
+      const currentHeight = this.engine.screen.resolution.height;
+
+      // Typecast our Graphic base type directly to an ex.Sprite type safely
+      const activeSprite = this.stageBackground.graphics.current as ex.Sprite;
+
+      if (activeSprite) {
+        activeSprite.width = currentWidth;
+        activeSprite.height = currentHeight;
+        activeSprite.destSize = { width: currentWidth, height: currentHeight };
+      }
+    }
+  }
+
   private initStairsCollision(summoner: ex.Actor) {
     summoner.on('collisionstart', (evt) => {
       if (evt.other.owner && evt.other.owner.name === 'Stairs') {
@@ -359,12 +367,14 @@ export class DungeonScene extends ex.Scene {
     // Commit progress to browser storage immediately upon advancing layout levels
     state.saveGame();
 
+    // Preserve UI assets from the clean-up sweeping array
     const actorsToRemove = this.actors.filter((actor) => {
       if (actor === this.summoner || actor.name === 'Summoner') return false;
       if (
         actor instanceof BattleHUD ||
         actor instanceof ExplorationHUD ||
-        actor === this.stageBackground
+        actor === this.stageBackground ||
+        actor.name === 'ExplorationHUD'
       )
         return false;
       return true;
@@ -388,6 +398,18 @@ export class DungeonScene extends ex.Scene {
       this.camera.strategy.lockToActor(this.summoner);
       this.camera.zoom = 1.5;
     }
+
+    // Force HTML UI elements to synchronize and update their visible variables seamlessly
+    const htmlHud = document.getElementById('exploration-html-hud');
+    if (htmlHud) {
+      htmlHud.style.display = 'block';
+    }
+
+    const floorTextElement = document.getElementById('hud-floor-text');
+    const coinTextElement = document.getElementById('hud-coin-text');
+
+    if (floorTextElement) floorTextElement.innerText = `B${state.currentFloor}`;
+    if (coinTextElement) coinTextElement.innerText = `${state.totalCoins}`;
 
     console.log(`Floor B${state.currentFloor} initialized successfully!`);
   }
