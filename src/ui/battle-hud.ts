@@ -206,12 +206,17 @@ export class BattleHUD extends ex.ScreenElement {
 
     enemyContainer.style.display = 'flex';
     enemyContainer.style.flexDirection = 'row';
-    enemyContainer.style.gap = '20px';
+    enemyContainer.style.gap = '24px';
     enemyContainer.style.position = 'absolute';
-    enemyContainer.style.top = '220px'; // Lowered slightly to maximize overworld canvas viewing space
-    enemyContainer.style.left = '160px';
+
+    // 🎯 RE-POSITIONED GRID ANCHORS FOR THE 1024x768 REWORK
+    enemyContainer.style.top = '270px';
+    enemyContainer.style.left =
+      '260px'; /* Shifted rightwards to center perfectly inside 1024 width */
 
     if (this.currentEnemies.length === 0) return;
+
+    // ... rest of your loop drawing enemy templates remains exactly the same ...
 
     this.currentEnemies.forEach((enemy, i) => {
       if (enemy.currentHp <= 0) return;
