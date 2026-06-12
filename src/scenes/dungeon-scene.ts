@@ -7,7 +7,6 @@ import { BattleHUD } from '../ui/battle-hud';
 import { ExplorationHUD } from '../ui/exploration-hud';
 import { Resources } from '../resources';
 import { state } from '../state';
-import { generateThreeDraftCards, UpgradeCard } from '../logic/upgrades';
 
 export class DungeonScene extends ex.Scene {
   private summoner!: Summoner;
@@ -187,7 +186,13 @@ export class DungeonScene extends ex.Scene {
 
     if (didLevelUp) {
       this.summoner.canMove = false;
-      this.showLevelUpDraftOverlay();
+
+      // 🎯 DELEGATE DIRECTLY TO BATTLEHUD UI INSTANCE
+      const overlay = document.getElementById('level-up-overlay');
+      if (overlay) {
+        overlay.style.display = 'flex';
+      }
+      this.battleHud.triggerLevelUpUI();
       return;
     }
 
@@ -208,67 +213,6 @@ export class DungeonScene extends ex.Scene {
       if (Resources.BlipSound.isLoaded()) Resources.BlipSound.play(0.2);
       this.nextFloorSequence();
     }
-  }
-
-  private showLevelUpDraftOverlay() {
-    const overlay = document.getElementById('level-up-overlay');
-    const cardsRow = document.getElementById('cards-row');
-    if (!overlay || !cardsRow) return;
-
-    cardsRow.innerHTML = '';
-    const options = generateThreeDraftCards();
-
-    options.forEach((card: UpgradeCard) => {
-      const cardElement = document.createElement('div');
-      cardElement.className = 'upgrade-card';
-
-      cardElement.innerHTML = `
-        <div class="card-title">${card.title}</div>
-        <div class="card-description">${card.description}</div>
-        <div class="card-rarity rarity-${card.rarity.toLowerCase()}">${card.rarity}</div>
-      `;
-
-      cardElement.onclick = () => {
-        card.applyReward();
-        overlay.style.display = 'none';
-
-        const htmlHud = document.getElementById('exploration-html-hud');
-        if (htmlHud) htmlHud.style.display = 'block';
-
-        const levelText = document.getElementById('hud-level-text');
-        const fillElement = document.getElementById('xp-bar-fill');
-        const textElement = document.getElementById('xp-bar-text');
-
-        if (levelText) levelText.innerText = `${state.currentLevel}`;
-        if (fillElement) {
-          fillElement.style.width = `${Math.min(100, (state.currentXp / state.xpNeededForLevelUp) * 100)}%`;
-        }
-        if (textElement) {
-          textElement.innerText = `${state.currentXp} / ${state.xpNeededForLevelUp} XP`;
-        }
-
-        // Commit save cleanly after draft card has mutated attributes
-        state.saveGame();
-
-        this.summoner.canMove = true;
-        this.activeEncounterGroup = [];
-
-        const stairsActor = this.actors.find(
-          (actor) => actor.name === 'Stairs',
-        );
-        if (
-          stairsActor &&
-          this.summoner &&
-          this.summoner.pos.distance(stairsActor.pos) < 40
-        ) {
-          this.nextFloorSequence();
-        }
-      };
-
-      cardsRow.appendChild(cardElement);
-    });
-
-    overlay.style.display = 'flex';
   }
 
   override onPreUpdate() {
@@ -359,6 +303,38 @@ export class DungeonScene extends ex.Scene {
 
   public updateCurrentFloorEnemies(enemies: Enemy[]) {
     this.enemies = enemies;
+  }
+
+  public resumeOverworldAfterUpgrade() {
+    const htmlHud = document.getElementById('exploration-html-hud');
+    if (htmlHud) htmlHud.style.display = 'block';
+
+    const levelText = document.getElementById('hud-level-text');
+    const fillElement = document.getElementById('xp-bar-fill');
+    const textElement = document.getElementById('xp-bar-text');
+
+    if (levelText) levelText.innerText = `${state.currentLevel}`;
+    if (fillElement) {
+      fillElement.style.width = `${Math.min(100, (state.currentXp / state.xpNeededForLevelUp) * 100)}%`;
+    }
+    if (textElement) {
+      textElement.innerText = `${state.currentXp} / ${state.xpNeededForLevelUp} XP`;
+    }
+
+    // Commit save cleanly after draft card has mutated attributes
+    state.saveGame();
+
+    this.summoner.canMove = true;
+    this.activeEncounterGroup = [];
+
+    const stairsActor = this.actors.find((actor) => actor.name === 'Stairs');
+    if (
+      stairsActor &&
+      this.summoner &&
+      this.summoner.pos.distance(stairsActor.pos) < 40
+    ) {
+      this.nextFloorSequence();
+    }
   }
 
   private nextFloorSequence() {

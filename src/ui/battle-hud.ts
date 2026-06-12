@@ -121,9 +121,14 @@ export class BattleHUD extends ex.ScreenElement {
       const isSelected = this.selectedCards.some((c) => c.id === card.id);
 
       cardEl.className = `game-card card-suit-${card.suit} ${isSelected ? 'selected' : ''}`;
+
+      // Safely slice suite components for the visual display track center node
+      const suitSymbol =
+        card.name.length > 0 ? card.name.substring(card.name.length - 1) : '';
+
       cardEl.innerHTML = `
         <div class="card-corner-top">${card.name}</div>
-        <div class="card-center-icon">${card.name.slice(-1)}</div>
+        <div class="card-center-icon">${suitSymbol}</div>
         <div class="card-corner-bottom" style="transform: rotate(180deg);">${card.name}</div>
       `;
 
@@ -206,10 +211,13 @@ export class BattleHUD extends ex.ScreenElement {
 
     enemyContainer.style.display = 'flex';
     enemyContainer.style.flexDirection = 'row';
-    enemyContainer.style.gap = '20px';
+    enemyContainer.style.gap = '24px';
     enemyContainer.style.position = 'absolute';
-    enemyContainer.style.top = '220px'; // Lowered slightly to maximize overworld canvas viewing space
-    enemyContainer.style.left = '160px';
+
+    // 🎯 RE-POSITIONED GRID ANCHORS FOR THE 1024x768 REWORK
+    enemyContainer.style.top = '270px';
+    enemyContainer.style.left =
+      '260px'; /* Shifted rightwards to center perfectly inside 1024 width */
 
     if (this.currentEnemies.length === 0) return;
 
@@ -271,8 +279,16 @@ export class BattleHUD extends ex.ScreenElement {
   }
 
   public updatePlayerParty(summons: any[]) {
-    this.currentParty = summons;
+    this.currentParty = Array.isArray(summons) ? summons : [];
     this.currentTurnIndex = 0;
+
+    // Safety synchronization: Enforce selection gateway priority immediately over default structures
+    if (this.currentParty[0]) {
+      this.currentParty[0].name =
+        (window as any).ACTIVE_DEMON_PARTNER ||
+        this.currentParty[0].name ||
+        'Pixie';
+    }
 
     this.clearLog();
     this.pushLog('⚔️ Card Battle Initiated... Hand Dealt!', 'system');
@@ -283,9 +299,11 @@ export class BattleHUD extends ex.ScreenElement {
     this.generateOpeningHand();
 
     const activeDemon = this.currentParty[this.currentTurnIndex];
-    this.updateTurnStatus(`${activeDemon?.name}'s Turn`, '#00ffcc');
+    const demonName = activeDemon?.name || 'Partner';
+
+    this.updateTurnStatus(`${demonName}'s Turn`, '#00ffcc');
     this.pushLog(
-      `✦ Player advantaged phase. Assemble card combos to direct ${activeDemon?.name.toUpperCase()}'s attacks.`,
+      `✦ Player advantaged phase. Assemble card combos to direct ${demonName.toUpperCase()}'s attacks.`,
       'player',
     );
 
@@ -293,53 +311,64 @@ export class BattleHUD extends ex.ScreenElement {
     this.renderPlayerHandUI();
   }
 
-  private refreshPartyUI() {
+  public refreshPartyUI() {
     if (!this.partyRowElement) return;
-    const partyRow = this.partyRowElement;
-    partyRow.innerHTML = '';
+    this.partyRowElement.innerHTML = '';
 
-    this.currentParty.forEach((demon, i) => {
-      const isCurrent = i === this.currentTurnIndex && !this.isEnemyTurn;
+    // 1. Fetch our active live-tracked companion data block from the loop array
+    const demon = this.currentParty[0];
+    if (!demon) return;
 
-      const spriteFileName =
-        demon.name.toLowerCase().replace(/\s+/g, '') + '.png';
-      const spritePath = `/sprites/${spriteFileName}`;
+    // 2. Force the selection gateway to take priority over instance-level fallbacks
+    const chosenPartner =
+      (window as any).ACTIVE_DEMON_PARTNER || demon.name || 'Pixie';
 
-      const hpPercent = Math.max(0, (demon.hp / (demon.maxHp || 100)) * 100);
-      const mpPercent = Math.max(0, (demon.mp / (demon.maxMp || 50)) * 100);
+    // Ensure the underlying object instance updates its name to match immediately
+    if (demon) {
+      demon.name = chosenPartner;
+    }
 
-      const card = document.createElement('div');
-      card.className = `party-status-card ${isCurrent ? 'active-turn' : ''}`;
+    // Resolve the asset path cleanly
+    const spritePath = `/sprites/${chosenPartner.toLowerCase().replace(/\s+/g, '')}.png`;
 
-      card.innerHTML = `
+    // 3. Dynamically calculate health & mana bar filling coefficients right now
+    const maxHp = demon.maxHp || 100;
+    const maxMp = demon.maxMp || 50;
+
+    const hpPercent = Math.max(0, (demon.hp / maxHp) * 100);
+    const mpPercent = Math.max(0, (demon.mp / maxMp) * 100);
+
+    // 4. Inject dynamically mapped metrics directly into your template frame
+    const partyCardHTML = `
+    <div class="party-status-card ${!this.isEnemyTurn ? 'active-turn' : ''}">
       <div class="card-hero-header">
-        <div class="card-sprite-slot" style="background-image: url('${spritePath}');"></div>
-        <div class="card-hero-name">${demon.name.toUpperCase()}</div>
+        <div class="card-sprite-slot" style="background-image: url('${spritePath}')"></div>
+        <div class="card-hero-name">${chosenPartner.toUpperCase()}</div>
       </div>
       
       <div class="bar-row">
         <div class="bar-label">
           <span>HP</span>
-          <span>${demon.hp}/${demon.maxHp || 100}</span>
+          <span id="party-hp-text">${demon.hp}/${maxHp}</span>
         </div>
-        <div class="bar-track">
-          <div class="bar-fill-hp" style="width: ${hpPercent}%;"></div>
+        <div class="bar-track" style="border: 1px solid #552222; background: #111; height: 6px; border-radius: 3px; overflow: hidden; margin-top: 4px; width: 100%;">
+          <div class="bar-fill-hp" style="width: ${hpPercent}%; background: linear-gradient(90deg, #ff3333, #ff5e5e); height: 100%;"></div>
         </div>
       </div>
 
       <div class="bar-row">
         <div class="bar-label">
           <span>MP</span>
-          <span>${demon.mp}/${demon.maxMp || 50}</span>
+          <span id="party-mp-text">${demon.mp}/${maxMp}</span>
         </div>
-        <div class="bar-track">
-          <div class="bar-fill-mp" style="width: ${mpPercent}%;"></div>
+        <div class="bar-track" style="border: 1px solid #222255; background: #111; height: 6px; border-radius: 3px; overflow: hidden; margin-top: 4px; width: 100%;">
+          <div class="bar-fill-mp" style="width: ${mpPercent}%; background: linear-gradient(90deg, #2980b9, #3498db); height: 100%;"></div>
         </div>
       </div>
-    `;
+    </div>
+  `;
 
-      partyRow.appendChild(card);
-    });
+    this.partyRowElement.innerHTML = partyCardHTML;
   }
 
   private showVictoryState() {
@@ -381,6 +410,158 @@ export class BattleHUD extends ex.ScreenElement {
     timer.start();
   }
 
+  public triggerLevelUpUI() {
+    const overlay = document.getElementById('level-up-overlay');
+    let cardsRow = document.getElementById('cards-row');
+
+    if (!overlay) {
+      console.error("Could not find '#level-up-overlay' container element.");
+      return;
+    }
+
+    // 1. MATCH THE GAME CANVAS CONTAINER SPACE PERFECTLY (NOT THE BROWSER VIEWPORT)
+    overlay.style.position = 'absolute';
+    overlay.style.top = '0';
+    overlay.style.left = '0';
+    overlay.style.width = '100%'; // Changes from 100vw to fill parent dimensions
+    overlay.style.height = '100%'; // Changes from 100vh to fill parent dimensions
+    overlay.style.zIndex = '999999';
+    overlay.style.display = 'flex';
+    overlay.style.flexDirection = 'column';
+    overlay.style.justifyContent = 'center';
+    overlay.style.alignItems = 'center';
+    overlay.style.backgroundColor = 'rgba(10, 10, 15, 0.9)';
+    overlay.style.boxSizing = 'border-box';
+
+    // 2. KEEP CARDS-ROW SAFELY ATTACHED DIRECTLY TO THE OVERLAY ROOT
+    if (cardsRow && cardsRow.parentElement !== overlay) {
+      overlay.appendChild(cardsRow);
+    }
+
+    if (!cardsRow) {
+      cardsRow = document.createElement('div');
+      cardsRow.id = 'cards-row';
+      overlay.appendChild(cardsRow);
+    }
+
+    cardsRow.innerHTML = '';
+
+    // 3. SECURE CENTERING FOR THE INTERACTIVE CHOICE ROW
+    cardsRow.style.display = 'flex' as any;
+    cardsRow.style.setProperty('display', 'flex', 'important');
+    cardsRow.style.flexDirection = 'row';
+    cardsRow.style.justifyContent = 'center';
+    cardsRow.style.alignItems = 'center';
+    cardsRow.style.gap = '16px'; // Slightly tighter gaps for smaller canvas bounds
+    cardsRow.style.width = '100%';
+    cardsRow.style.maxWidth = '100%';
+    cardsRow.style.height = 'auto';
+    cardsRow.style.marginTop = '24px';
+    cardsRow.style.boxSizing = 'border-box';
+
+    const currentPartner =
+      (window as any).ACTIVE_DEMON_PARTNER ||
+      this.currentParty[0]?.name ||
+      'Partner';
+
+    const upgrades = [
+      {
+        id: 'hp_up',
+        title: 'Life Surge',
+        desc: `Increases ${currentPartner}'s Max HP by +25.`,
+        stat: 'maxHp',
+        value: 25,
+      },
+      {
+        id: 'mp_up',
+        title: 'Mana Spring',
+        desc: `Increases ${currentPartner}'s Max MP by +15.`,
+        stat: 'maxMp',
+        value: 15,
+      },
+      {
+        id: 'dmg_up',
+        title: 'Almighty Boost',
+        desc: 'Increases base damage multipliers by 15%.',
+        stat: 'powerMod',
+        value: 0.15,
+      },
+    ];
+
+    // 4. GENERATE SCALED CARDS
+    upgrades.forEach((upgrade) => {
+      const cardEl = document.createElement('div');
+      cardEl.className = 'upgrade-card-choice-override';
+
+      cardEl.style.display = 'flex';
+      cardEl.style.flexDirection = 'column';
+      cardEl.style.justifyContent = 'center';
+      cardEl.style.alignItems = 'center';
+      cardEl.style.cursor = 'pointer';
+
+      // Slightly optimized dimensions to look brilliant inside your exact canvas shape
+      cardEl.style.width = '160px';
+      cardEl.style.height = '140px';
+      cardEl.style.padding = '12px';
+      cardEl.style.backgroundColor = '#151518';
+      cardEl.style.border = '2px solid #ffcc00';
+      cardEl.style.borderRadius = '8px';
+      cardEl.style.boxSizing = 'border-box';
+      cardEl.style.textAlign = 'center';
+
+      cardEl.innerHTML = `
+        <div style="color: #ffcc00 !important; font-family: monospace; font-weight: bold; font-size: 13px; margin-bottom: 6px; pointer-events: none;">
+          ${upgrade.title.toUpperCase()}
+        </div>
+        <div style="color: #ffffff !important; font-family: monospace; font-size: 11px; line-height: 1.3; pointer-events: none;">
+          ${upgrade.desc}
+        </div>
+      `;
+
+      cardEl.onmouseenter = () => {
+        cardEl.style.transform = 'translateY(-4px)';
+        cardEl.style.boxShadow = '0 0 12px rgba(255, 204, 0, 0.4)';
+      };
+      cardEl.onmouseleave = () => {
+        cardEl.style.transform = 'translateY(0px)';
+        cardEl.style.boxShadow = 'none';
+      };
+
+      cardEl.onclick = (e) => {
+        e.stopPropagation();
+        this.applyUpgradeReward(upgrade);
+        if (cardsRow) cardsRow.innerHTML = '';
+
+        overlay.style.display = 'none';
+
+        if (this.scene && (this.scene as any).resumeOverworldAfterUpgrade) {
+          (this.scene as any).resumeOverworldAfterUpgrade();
+        }
+      };
+
+      cardsRow.appendChild(cardEl);
+    });
+  }
+
+  private applyUpgradeReward(upgrade: any) {
+    const activeDemon = this.currentParty[0];
+    if (activeDemon) {
+      if (upgrade.stat === 'maxHp') {
+        activeDemon.maxHp = (activeDemon.maxHp || 100) + upgrade.value;
+        activeDemon.hp = activeDemon.maxHp; // Heal to full capacity on level up
+      } else if (upgrade.stat === 'maxMp') {
+        activeDemon.maxMp = (activeDemon.maxMp || 50) + upgrade.value;
+        activeDemon.mp = activeDemon.maxMp;
+      }
+      this.pushLog(
+        `✨ Upgraded ${activeDemon.name || 'Partner'}: Gained ${upgrade.title}!`,
+        'weak',
+      );
+    }
+
+    this.refreshPartyUI();
+  }
+
   private triggerGameOver() {
     this.isProcessingVictory = true;
     this.updateTurnStatus('DEFEAT', '#ff4a4a');
@@ -415,6 +596,7 @@ export class BattleHUD extends ex.ScreenElement {
 
   /**
    * Evaluates the selected cards, calculates the damage payload, and executes the attack.
+   * Hooks into window.ACTIVE_DEMON_PARTNER to process unique double damage passives.
    */
   private executeCardComboAttack() {
     if (this.isEnemyTurn || this.isProcessingVictory) return;
@@ -437,12 +619,38 @@ export class BattleHUD extends ex.ScreenElement {
 
       const targetIndex = this.currentEnemies.indexOf(target);
 
+      // Calculate final power footprint factoring draft modifications
+      let calculatedPower = evaluation.power;
+      const globalPartner = (window as any).ACTIVE_DEMON_PARTNER;
+
+      if (globalPartner === 'Pixie' && evaluation.type === 'PAIR') {
+        calculatedPower *= 2.0;
+        this.pushLog(
+          `✨ [PASSIVE COGNITION] Pixie's Faerie Synergy triggered! Double Combo Damage!`,
+          'weak',
+        );
+      } else if (
+        globalPartner === 'Jack Frost' &&
+        evaluation.type === 'STRAIGHT'
+      ) {
+        calculatedPower *= 2.0;
+        this.pushLog(
+          `✨ [PASSIVE COGNITION] Jack Frost's Hee-Ho Surge triggered! Double Combo Damage!`,
+          'weak',
+        );
+      }
+
+      const finalDamage = Math.round(calculatedPower);
+      const activeDemonName = activeDemon.name
+        ? activeDemon.name.toUpperCase()
+        : 'PARTNER';
+
       this.pushLog(
-        `🃏 ${activeDemon.name.toUpperCase()} plays a ${evaluation.type} (${evaluation.element}) dealing ${Math.round(evaluation.power)} DMG to ${target.enemyName.toUpperCase()}!`,
+        `🃏 ${activeDemonName} plays a ${evaluation.type} (${evaluation.element}) dealing ${finalDamage} DMG to ${target.enemyName.toUpperCase()}!`,
         'player',
       );
 
-      target.takeDamage(Math.round(evaluation.power), elementAffinity);
+      target.takeDamage(finalDamage, elementAffinity);
 
       if (Resources.BlipSound.isLoaded()) Resources.BlipSound.play(0.3);
 
@@ -482,7 +690,10 @@ export class BattleHUD extends ex.ScreenElement {
         target.weakness.toLowerCase() === elementAffinity.toLowerCase();
 
       if (hitWeakness) {
-        this.updateTurnStatus(`${activeDemon.name} (1 MORE)`, '#ffcc00');
+        this.updateTurnStatus(
+          `${activeDemon.name || 'Partner'} (1 MORE)`,
+          '#ffcc00',
+        );
         this.pushLog(
           `✨ WEAKNESS BREAKTHROUGH! ${target.enemyName.toUpperCase()} staggered! 1 Extra Combo permitted!`,
           'weak',
@@ -500,7 +711,10 @@ export class BattleHUD extends ex.ScreenElement {
           this.enemyTurn();
         } else {
           const nextDemon = this.currentParty[this.currentTurnIndex];
-          this.updateTurnStatus(`${nextDemon?.name}'s Turn`, '#00ffcc');
+          this.updateTurnStatus(
+            `${nextDemon?.name || 'Partner'}'s Turn`,
+            '#00ffcc',
+          );
           this.refreshPartyUI();
           this.renderPlayerHandUI();
         }
@@ -525,8 +739,10 @@ export class BattleHUD extends ex.ScreenElement {
       if (target && target.hp > 0) {
         const damage = 10;
         target.hp = Math.max(0, target.hp - damage);
+
+        const targetName = target.name ? target.name.toUpperCase() : 'PARTNER';
         this.pushLog(
-          `💥 ${enemy.enemyName.toUpperCase()} attacks ${target.name.toUpperCase()} for ${damage} DMG.`,
+          `💥 ${enemy.enemyName.toUpperCase()} attacks ${targetName} for ${damage} DMG.`,
           'enemy',
         );
 
@@ -534,10 +750,7 @@ export class BattleHUD extends ex.ScreenElement {
         this.refreshPartyUI();
 
         if (target.hp <= 0) {
-          this.pushLog(
-            `💀 ${target.name.toUpperCase()} collapsed in battle!`,
-            'enemy',
-          );
+          this.pushLog(`💀 ${targetName} collapsed in battle!`, 'enemy');
           this.triggerGameOver();
           return;
         }
@@ -550,7 +763,7 @@ export class BattleHUD extends ex.ScreenElement {
           game.currentScene.camera.shake(8, 8, 250);
           this.updateTurnStatus(`ENEMY WEAKNESS STRIKE!`, '#ffcc00');
           this.pushLog(
-            `⚠️ CRITICAL PUNISHMENT! Weakness struck on ${target.name.toUpperCase()}!`,
+            `⚠️ CRITICAL PUNISHMENT! Weakness struck on ${targetName}!`,
             'weak',
           );
 
@@ -558,10 +771,7 @@ export class BattleHUD extends ex.ScreenElement {
           this.refreshPartyUI();
 
           if (target.hp <= 0) {
-            this.pushLog(
-              `💀 ${target.name.toUpperCase()} collapsed in battle!`,
-              'enemy',
-            );
+            this.pushLog(`💀 ${targetName} collapsed in battle!`, 'enemy');
             this.triggerGameOver();
             return;
           }
@@ -584,7 +794,10 @@ export class BattleHUD extends ex.ScreenElement {
     this.currentTurnIndex = 0;
 
     const leadCharacter = this.currentParty[0];
-    this.updateTurnStatus(`${leadCharacter?.name}'s Turn`, '#00ffcc');
+    this.updateTurnStatus(
+      `${leadCharacter?.name || 'Partner'}'s Turn`,
+      '#00ffcc',
+    );
     this.pushLog(`✦ Player Phase restored. Choose your actions.`, 'player');
 
     this.refreshPartyUI();

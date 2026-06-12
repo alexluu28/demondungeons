@@ -20,10 +20,12 @@ export const Resources = {
 
 // 2. Initialize the Engine
 export const game = new ex.Engine({
-  width: 800,
-  height: 600,
+  width: 1024,
+  height: 768,
   canvasElementId: 'game',
   displayMode: ex.DisplayMode.FitScreen,
+  pointerScope: ex.PointerScope.Canvas,
+  snapToPixel: true,
   antialiasing: false, // Keeps your pixel art sharp!
 });
 

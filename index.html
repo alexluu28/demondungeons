@@ -18,12 +18,12 @@
       font-family: 'monospace', sans-serif;
     }
 
-    /* --- THE MASTER CONTAINER ANCHOR --- */
+    /* --- 🖥️ THE UPGRADED MASTER CONTAINER ANCHOR --- */
     #game-wrapper {
       position: relative !important;
-      width: 800px !important;
-      height: 600px !important;
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7) !important;
+      width: 1024px !important;  /* Expanded from 800px */
+      height: 768px !important;  /* Expanded from 600px */
+      box-shadow: 0 15px 40px rgba(0, 0, 0, 0.8) !important;
       background-color: transparent !important;
       overflow: hidden !important;
     }
@@ -33,27 +33,27 @@
       display: block !important;
       width: 100% !important;
       height: 100% !important;
-      background-color: transparent !important; /* Forces Excalibur to drop its internal blue/gray fallback color layer */
+      background-color: transparent !important; /* Forces Excalibur to drop its internal fallback color layer */
       position: absolute;
       top: 0;
       left: 0;
       z-index: 1;
     }
 
-    /* --- PERSISTENT EXPLORATION HTML HUD (DOCKED TO THE BOTTOM OF THE GAME) --- */
+    /* --- PERSISTENT EXPLORATION HTML HUD --- */
     #exploration-html-hud {
       position: absolute;
-      bottom: 20px;       /* Locked 20px from the bottom edge of the game screen */
-      left: 50%;          /* Anchors starting point exactly center-screen */
-      transform: translateX(-50%); /* Shifts left by half its width to perfectly center it */
-      width: 85%;
-      max-width: 550px;   /* Prevents it from spreading uncomfortably wide */
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 80%;
+      max-width: 650px;   /* Expanded to leverage expanded width cleanly */
       background: rgba(15, 15, 25, 0.85);
       backdrop-filter: blur(6px);
       -webkit-backdrop-filter: blur(6px);
       border: 2px solid rgba(255, 255, 255, 0.12);
       border-radius: 6px;
-      padding: 10px 16px;
+      padding: 10px 20px;
       z-index: 999;       /* Layers safely above the engine canvas render track */
       box-sizing: border-box;
       color: #ffffff;
@@ -136,13 +136,13 @@
       pointer-events: none;
     }
 
-    /* --- REVAMPED BATTLE HTML HUD SYSTEM CONFIGURATION --- */
+    /* --- BATTLE HTML HUD SYSTEM MIGRATION MATRIX --- */
     #battle-html-hud {
       position: absolute;
       top: 0;
       left: 0;
-      width: 800px;
-      height: 600px;
+      width: 1024px; /* Scaled to match resolution */
+      height: 768px; /* Scaled to match resolution */
       pointer-events: none; /* Let clicks pass down to Excalibur selectors */
       font-family: 'Courier New', Courier, monospace;
       color: #ffffff;
@@ -150,13 +150,13 @@
       z-index: 995;
     }
 
-    /* Retro Combat Feed Container Container */
+    /* Retro Combat Feed Container */
     #battle-log-container {
       position: absolute;
-      top: 20px;
-      left: 20px;
-      width: 280px;
-      height: 180px;
+      top: 25px;
+      left: 25px;
+      width: 320px; /* Wider reading frame allocation */
+      height: 220px; /* Taller output track */
       background: rgba(10, 15, 25, 0.88);
       backdrop-filter: blur(4px);
       -webkit-backdrop-filter: blur(4px);
@@ -170,7 +170,7 @@
     .battle-log-header {
       background: #1c263b;
       padding: 6px 10px;
-      font-size: 11px;
+      font-size: 12px;
       font-weight: bold;
       letter-spacing: 1px;
       color: #00ffcc;
@@ -194,7 +194,6 @@
     /* Centered Enemy Grid Container */
     #battle-enemy-container {
       position: absolute;
-      /* Dynamic positions are overwritten reactively inside BattleHUD.ts */
       pointer-events: auto;
       z-index: 996;
     }
@@ -202,11 +201,11 @@
     /* Bottom Row Party Grid Deck Layout */
     #battle-party-row {
       position: absolute;
-      bottom: 195px; /* Pushed up to clear card hand space gracefully */
-      left: 20px;
-      width: 480px; /* Leaves clear right-hand tracking space for enemy panels */
+      bottom: 220px; /* Pushed up to clear expanded hand assets cleanly */
+      left: 25px;
+      width: 550px;  /* Offers comfortable spread space */
       display: flex;
-      gap: 12px;
+      gap: 16px;
       pointer-events: auto;
     }
 
@@ -216,7 +215,7 @@
       backdrop-filter: blur(4px);
       -webkit-backdrop-filter: blur(4px);
       border: 2px solid #2d3954;
-      padding: 8px;
+      padding: 10px;
       border-radius: 4px;
       transition: border-color 0.2s ease, box-shadow 0.2s ease;
     }
@@ -231,14 +230,14 @@
       display: flex;
       align-items: center;
       gap: 8px;
-      margin-bottom: 6px;
+      margin-bottom: 8px;
       border-bottom: 1px solid rgba(45, 57, 84, 0.5);
       padding-bottom: 4px;
     }
 
     .card-sprite-slot {
-      width: 24px;
-      height: 24px;
+      width: 28px;
+      height: 28px;
       background-size: contain;
       background-repeat: no-repeat;
       background-position: center;
@@ -247,14 +246,14 @@
 
     .card-hero-name {
       font-weight: bold;
-      font-size: 12px;
+      font-size: 13px;
       color: #e1e7f0;
       letter-spacing: 0.5px;
     }
 
     /* Resource Bar Assemblies */
     .bar-row {
-      margin-bottom: 4px;
+      margin-bottom: 6px;
       font-size: 11px;
     }
 
@@ -285,34 +284,18 @@
       transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
-    /* Interactive Menu Skill Buttons */
-    .battle-skill-btn {
-      background: #1c263b;
-      border: 1px solid #3a4b6e;
-      color: #ffffff;
-      cursor: pointer;
-      font-family: monospace;
-      border-radius: 2px;
-      transition: background 0.2s, border-color 0.2s;
-    }
-
-    .battle-skill-btn:hover {
-      background: #2d3954;
-      border-color: #00ffcc;
-      color: #00ffcc;
-    }
-
-    /* 🃏 INTERACTIVE CARD COMBAT DECKS LAYER DESIGN */
+    /* 🃏 UPGRADED TIẾN LÊN SELECTION HAND STAGE ARCHITECTURE */
     .player-hand-wrapper {
       position: absolute;
-      bottom: 15px;
+      bottom: 25px; /* Locked nicely along base border footprint */
       left: 50%;
       transform: translateX(-50%);
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 10px;
+      gap: 12px;
       width: 95%;
+      max-width: 960px; /* Maximizes card layout extension track */
       pointer-events: auto; /* Re-enable pointer events for selection choices */
     }
 
@@ -320,28 +303,28 @@
       display: flex;
       justify-content: center;
       align-items: flex-end;
-      height: 115px;
+      height: 140px; /* Ample physical clearance headroom */
       width: 100%;
     }
 
     .game-card {
       background: #10141d;
       border: 2px solid #3a4b6e;
-      border-radius: 6px;
-      width: 58px;
-      height: 90px;
-      margin-left: -14px; /* Physical overlay spacing layout */
-      transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275), border-color 0.2s, box-shadow 0.2s;
+      border-radius: 8px;
+      width: 72px;  /* Upscaled card width */
+      height: 110px; /* Upscaled card height */
+      margin-left: -16px; /* Smooth physical card fanning overlap */
+      transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275), border-color 0.2s, box-shadow 0.2s;
       cursor: pointer;
       display: flex;
       flex-direction: column;
       justify-content: space-between;
-      padding: 6px;
+      padding: 8px;
       box-sizing: border-box;
       user-select: none;
-      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.6);
+      box-shadow: 0 6px 12px rgba(0, 0, 0, 0.6);
       font-family: monospace;
-      font-size: 11px;
+      font-size: 13px;
       font-weight: bold;
     }
 
@@ -350,16 +333,16 @@
     }
 
     .game-card:hover {
-      transform: translateY(-12px);
+      transform: translateY(-20px);
       border-color: #ffffff;
       z-index: 100;
     }
 
-    /* Selection lift properties */
+    /* Selected lift state rule */
     .game-card.selected {
-      transform: translateY(-24px);
+      transform: translateY(-38px); /* Clear physical pullout indicator */
       border-color: #00ffcc;
-      box-shadow: 0 0 12px rgba(0, 255, 204, 0.5);
+      box-shadow: 0 0 16px rgba(0, 255, 204, 0.6);
       z-index: 101;
     }
 
@@ -368,23 +351,23 @@
     .card-suit-SPADES, .card-suit-CLUBS { color: #ffffff; }
 
     .card-corner-top { align-self: flex-start; }
-    .card-center-icon { align-self: center; font-size: 18px; margin-top: -2px; }
+    .card-center-icon { align-self: center; font-size: 22px; margin-top: -2px; }
     .card-corner-bottom { align-self: flex-end; }
 
-    /* Action Control Interface Bars */
+    /* Hand Actions Row Styling */
     .hand-controls {
       display: flex;
-      gap: 12px;
+      gap: 16px;
     }
 
     .hand-controls button {
       background: #0f131c;
       color: #00ffcc;
       border: 2px solid #3a4b6e;
-      padding: 6px 18px;
+      padding: 8px 24px;
       font-family: monospace;
       font-weight: bold;
-      font-size: 11px;
+      font-size: 12px;
       cursor: pointer;
       border-radius: 4px;
       transition: background 0.2s, border-color 0.2s, color 0.2s;
@@ -393,7 +376,7 @@
     .hand-controls button:hover:not(:disabled) {
       border-color: #00ffcc;
       background: #162233;
-      box-shadow: 0 0 8px rgba(0, 255, 204, 0.2);
+      box-shadow: 0 0 10px rgba(0, 255, 204, 0.3);
     }
 
     .hand-controls button:disabled {
@@ -403,7 +386,7 @@
       cursor: not-allowed;
     }
 
-    /* --- THE INTERACTIVE LEVEL-UP OVERLAY SCREEN (CENTERED OVER THE GAME) --- */
+    /* --- THE INTERACTIVE LEVEL-UP OVERLAY SCREEN --- */
     #level-up-overlay {
       position: absolute;
       top: 0;
@@ -415,9 +398,9 @@
       flex-direction: column;
       justify-content: center;
       align-items: center;
-      background-color: rgba(10, 10, 15, 0.92);
-      backdrop-filter: blur(5px);
-      -webkit-backdrop-filter: blur(5px);
+      background-color: rgba(10, 10, 15, 0.94);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
       transition: opacity 0.3s ease-in-out;
     }
 
@@ -427,28 +410,28 @@
     }
 
     .draft-headline {
-      font-size: 28px;
+      font-size: 32px;
       color: #ffd700;
-      margin: 0 0 5px 0;
-      text-shadow: 0 0 10px rgba(255, 215, 0, 0.4);
+      margin: 0 0 8px 0;
+      text-shadow: 0 0 12px rgba(255, 215, 0, 0.4);
       letter-spacing: 2px;
     }
 
     .draft-subline {
-      font-size: 14px;
+      font-size: 15px;
       color: #aaaaaa;
-      margin: 0 0 30px 0;
+      margin: 0 0 40px 0;
     }
 
     /* Grid alignment organizing level selections */
     #cards-row {
       display: flex;
       flex-direction: row;
-      gap: 24px;
+      gap: 32px;
       justify-content: center;
       align-items: center;
       width: 100%;
-      max-width: 760px; /* Snug containment width inside wrapper */
+      max-width: 900px; /* Expanded room footprint */
       margin: 0 auto;
     }
 
@@ -456,46 +439,46 @@
       background: linear-gradient(135deg, #1e1e2f, #12121a);
       border: 2px solid #444466;
       border-radius: 10px;
-      width: 210px;
-      padding: 20px;
+      width: 240px;
+      padding: 24px;
       cursor: pointer;
       box-sizing: border-box;
       transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
       display: flex;
       flex-direction: column;
       justify-content: space-between;
-      min-height: 260px;
+      min-height: 300px;
       text-align: left;
       font-family: 'monospace', sans-serif;
     }
 
     .upgrade-card:hover {
-      transform: translateY(-8px);
+      transform: translateY(-10px);
       border-color: #ffd700;
-      box-shadow: 0 10px 20px rgba(255, 215, 0, 0.2);
+      box-shadow: 0 12px 24px rgba(255, 215, 0, 0.25);
     }
 
     .card-title {
-      font-size: 16px;
+      font-size: 18px;
       font-weight: bold;
-      margin-bottom: 12px;
+      margin-bottom: 14px;
       color: #ffffff;
     }
 
     .card-description {
-      font-size: 12px;
+      font-size: 13px;
       color: #cccccc;
       line-height: 1.5;
       flex-grow: 1;
     }
 
     .card-rarity {
-      font-size: 10px;
+      font-size: 11px;
       text-transform: uppercase;
       font-weight: bold;
       letter-spacing: 1px;
-      margin-top: 15px;
-      padding: 3px 8px;
+      margin-top: 18px;
+      padding: 4px 10px;
       border-radius: 4px;
       background: rgba(255, 255, 255, 0.1);
       align-self: flex-start;
@@ -504,12 +487,68 @@
     .rarity-common { color: #8888aa; }
     .rarity-rare { color: #3a86ff; text-shadow: 0 0 5px rgba(58, 134, 255, 0.4); }
     .rarity-epic { color: #ff006e; text-shadow: 0 0 5px rgba(255, 0, 110, 0.4); }
+
+    /* --- 😈 DEMON SELECTOR OVERLAY LAYOUT MATRIX --- */
+    #demon-selector-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 10000; /* Stays fixed cleanly above everything on initial engine boots */
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      background-color: #06060a;
+      box-sizing: border-box;
+    }
   </style>
 </head>
 <body>
 
 <div id="game-wrapper">
   <canvas id="game"></canvas>
+
+  <!-- 😈 DEBUT DEMON CHOOSE DRAFT OVERLAY -->
+  <div id="demon-selector-overlay">
+    <div class="draft-container">
+      <h2 class="draft-headline">🔮 CHOOSE YOUR DEMON COMPANION 🔮</h2>
+      <p class="draft-subline">Your selection dictates core card combat elements and damage multipliers</p>
+
+      <div id="cards-row">
+        <!-- Pixie Selection Card -->
+        <div class="upgrade-card" id="select-pixie">
+          <div>
+            <div class="card-title" style="color: #00ffcc;">PIXIE</div>
+            <div class="card-description">
+              A playful fairy pulling volatile currents through your deck mechanics.
+              <br><br>
+              <strong style="color: #ffd700;">PASSIVE COGNITION:</strong>
+              <br>
+              <span style="color: #ff006e;">Faerie Synergy</span> — Inflicts <strong style="color: #ffffff;">2.0x Double Damage</strong> whenever you execute a valid <strong>PAIR (Đôi)</strong> combo.
+            </div>
+          </div>
+          <div class="card-rarity rarity-rare">Zio Affinity</div>
+        </div>
+
+        <!-- Jack Frost Selection Card -->
+        <div class="upgrade-card" id="select-jackfrost">
+          <div>
+            <div class="card-title" style="color: #3a86ff;">JACK FROST</div>
+            <div class="card-description">
+              The mischievous spirit of winter frost ready to synchronize your plays.
+              <br><br>
+              <strong style="color: #ffd700;">PASSIVE COGNITION:</strong>
+              <br>
+              <span style="color: #00b4d8;">Hee-Ho Surge</span> — Inflicts <strong style="color: #ffffff;">2.0x Double Damage</strong> whenever you execute a valid sequential <strong>STRAIGHT (Sảnh)</strong> run.
+            </div>
+          </div>
+          <div class="card-rarity rarity-epic">Bufu Affinity</div>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- Persistent Exploration Overworld Hub -->
   <div id="exploration-html-hud">
@@ -533,6 +572,8 @@
       <div id="battle-log-feed"></div>
     </div>
 
+    <div class="battle-turn-status" id="battle-turn-status" style="position: absolute; top: 25px; left: 370px; font-size: 24px; font-weight: bold; letter-spacing: 2px; text-shadow: 0 2px 4px rgba(0,0,0,0.8); z-index: 996;"></div>
+
     <div id="battle-enemy-container"></div>
     <div id="battle-party-row"></div>
 
@@ -541,7 +582,7 @@
       <div id="cards-in-hand-container"></div>
       <div class="hand-controls">
         <button id="btn-play-hand" disabled>PLAY SELECTION</button>
-        <button id="btn-pass-turn">PASS</button>
+        <button id="btn-pass-turn">PASS TURN</button>
       </div>
     </div>
   </div>
@@ -555,6 +596,34 @@
     </div>
   </div>
 </div>
+
+<!-- Core Selection State Binding Engine Script Group -->
+<script>
+  // Shared global state proxy readable by the Excalibur engine
+  window.ACTIVE_DEMON_PARTNER = null;
+
+  document.addEventListener('DOMContentLoaded', () => {
+    const bindSelection = (elementId, name) => {
+      const btn = document.getElementById(elementId);
+      if (btn) {
+        btn.addEventListener('click', () => {
+          window.ACTIVE_DEMON_PARTNER = name;
+
+          // Clear overlay representation frame cleanly
+          const overlay = document.getElementById('demon-selector-overlay');
+          if (overlay) overlay.style.display = 'none';
+
+          // Broadcast selection event for active engine HUD bindings
+          window.dispatchEvent(new CustomEvent('demonPartnerSelected', { detail: { name } }));
+          console.log(`[DemonDungeons] Solo companion selected: ${name}`);
+        });
+      }
+    };
+
+    bindSelection('select-pixie', 'Pixie');
+    bindSelection('select-jackfrost', 'Jack Frost');
+  });
+</script>
 
 <script type="module" src="/src/main.ts"></script>
 </body>
