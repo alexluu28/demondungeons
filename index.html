@@ -487,6 +487,22 @@
     .rarity-common { color: #8888aa; }
     .rarity-rare { color: #3a86ff; text-shadow: 0 0 5px rgba(58, 134, 255, 0.4); }
     .rarity-epic { color: #ff006e; text-shadow: 0 0 5px rgba(255, 0, 110, 0.4); }
+
+    /* --- 😈 DEMON SELECTOR OVERLAY LAYOUT MATRIX --- */
+    #demon-selector-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 10000; /* Stays fixed cleanly above everything on initial engine boots */
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      background-color: #06060a;
+      box-sizing: border-box;
+    }
   </style>
 </head>
 <body>
@@ -494,6 +510,47 @@
 <div id="game-wrapper">
   <canvas id="game"></canvas>
 
+  <!-- 😈 DEBUT DEMON CHOOSE DRAFT OVERLAY -->
+  <div id="demon-selector-overlay">
+    <div class="draft-container">
+      <h2 class="draft-headline">🔮 CHOOSE YOUR DEMON COMPANION 🔮</h2>
+      <p class="draft-subline">Your selection dictates core card combat elements and damage multipliers</p>
+
+      <div id="cards-row">
+        <!-- Pixie Selection Card -->
+        <div class="upgrade-card" id="select-pixie">
+          <div>
+            <div class="card-title" style="color: #00ffcc;">PIXIE</div>
+            <div class="card-description">
+              A playful fairy pulling volatile currents through your deck mechanics.
+              <br><br>
+              <strong style="color: #ffd700;">PASSIVE COGNITION:</strong>
+              <br>
+              <span style="color: #ff006e;">Faerie Synergy</span> — Inflicts <strong style="color: #ffffff;">2.0x Double Damage</strong> whenever you execute a valid <strong>PAIR (Đôi)</strong> combo.
+            </div>
+          </div>
+          <div class="card-rarity rarity-rare">Zio Affinity</div>
+        </div>
+
+        <!-- Jack Frost Selection Card -->
+        <div class="upgrade-card" id="select-jackfrost">
+          <div>
+            <div class="card-title" style="color: #3a86ff;">JACK FROST</div>
+            <div class="card-description">
+              The mischievous spirit of winter frost ready to synchronize your plays.
+              <br><br>
+              <strong style="color: #ffd700;">PASSIVE COGNITION:</strong>
+              <br>
+              <span style="color: #00b4d8;">Hee-Ho Surge</span> — Inflicts <strong style="color: #ffffff;">2.0x Double Damage</strong> whenever you execute a valid sequential <strong>STRAIGHT (Sảnh)</strong> run.
+            </div>
+          </div>
+          <div class="card-rarity rarity-epic">Bufu Affinity</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Persistent Exploration Overworld Hub -->
   <div id="exploration-html-hud">
     <div class="hud-top-bar">
       <div class="hud-stat-box"><span class="hud-label">STAGE:</span><span id="hud-floor-text">B1</span></div>
@@ -508,6 +565,7 @@
     </div>
   </div>
 
+  <!-- Combat Interface HUD -->
   <div id="battle-html-hud" style="display: none;">
     <div id="battle-log-container">
       <div class="battle-log-header">COMBAT LOG</div>
@@ -519,6 +577,7 @@
     <div id="battle-enemy-container"></div>
     <div id="battle-party-row"></div>
 
+    <!-- 🃏 Card Combos Interactive Arena Zone -->
     <div class="player-hand-wrapper">
       <div id="cards-in-hand-container"></div>
       <div class="hand-controls">
@@ -528,6 +587,7 @@
     </div>
   </div>
 
+  <!-- Reward Level Draft Overlay Screen -->
   <div id="level-up-overlay" style="display: none;">
     <div class="draft-container">
       <h2 class="draft-headline">✨ LEVEL UP! ✨</h2>
@@ -536,6 +596,34 @@
     </div>
   </div>
 </div>
+
+<!-- Core Selection State Binding Engine Script Group -->
+<script>
+  // Shared global state proxy readable by the Excalibur engine
+  window.ACTIVE_DEMON_PARTNER = null;
+
+  document.addEventListener('DOMContentLoaded', () => {
+    const bindSelection = (elementId, name) => {
+      const btn = document.getElementById(elementId);
+      if (btn) {
+        btn.addEventListener('click', () => {
+          window.ACTIVE_DEMON_PARTNER = name;
+
+          // Clear overlay representation frame cleanly
+          const overlay = document.getElementById('demon-selector-overlay');
+          if (overlay) overlay.style.display = 'none';
+
+          // Broadcast selection event for active engine HUD bindings
+          window.dispatchEvent(new CustomEvent('demonPartnerSelected', { detail: { name } }));
+          console.log(`[DemonDungeons] Solo companion selected: ${name}`);
+        });
+      }
+    };
+
+    bindSelection('select-pixie', 'Pixie');
+    bindSelection('select-jackfrost', 'Jack Frost');
+  });
+</script>
 
 <script type="module" src="/src/main.ts"></script>
 </body>
