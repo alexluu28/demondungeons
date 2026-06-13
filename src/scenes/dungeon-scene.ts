@@ -129,7 +129,17 @@ export class DungeonScene extends ex.Scene {
     const textElement = document.getElementById('xp-bar-text');
     const coinTextElement = document.getElementById('hud-coin-text');
 
+    // 🌟 CONNECTED: Targets the exact ID from your index.html
+    const floorTextElement = document.getElementById('hud-floor-text');
+
     if (levelText) levelText.innerText = `${state.currentLevel}`;
+    if (coinTextElement) coinTextElement.innerText = `${state.totalCoins}`;
+
+    // 🌟 UPDATED: Injects the dynamic floor level directly into the DOM
+    if (floorTextElement) {
+      floorTextElement.innerText = `B${state.currentFloor}`;
+    }
+
     if (fillElement) {
       const xpPercent = Math.min(
         100,
@@ -139,9 +149,6 @@ export class DungeonScene extends ex.Scene {
     }
     if (textElement) {
       textElement.innerText = `${state.currentXp} / ${state.xpNeededForLevelUp} XP`;
-    }
-    if (coinTextElement) {
-      coinTextElement.innerText = `${state.totalCoins}`;
     }
   }
 
