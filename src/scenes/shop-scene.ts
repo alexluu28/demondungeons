@@ -1,121 +1,141 @@
 import * as ex from 'excalibur';
 import { GameState } from '../logic/game-state';
-import { GoldHUD } from '../ui/gold-hud';
+import { state } from '../state';
 
 export class ShopScene extends ex.Scene {
-  onInitialize(_engine: ex.Engine) {
-    // 1. UI Overlay
-    this.add(new GoldHUD());
+  private shopOverlay!: HTMLElement | null;
+  private goldText!: HTMLElement | null;
+  private potionBtn!: HTMLButtonElement | null;
+  private crystalBtn!: HTMLButtonElement | null;
+  private exitBtn!: HTMLButtonElement | null;
 
-    const title = new ex.Label({
-      text: 'WANDERING MERCHANT',
-      pos: ex.vec(400, 80),
-      font: new ex.Font({
-        size: 40,
-        color: ex.Color.White,
-        textAlign: ex.TextAlign.Center,
-        family: 'monospace',
-        bold: true,
-      }),
-    });
-    this.add(title);
+  override onInitialize(_engine: ex.Engine) {
+    // Cache references to our domestic DOM elements
+    this.shopOverlay = document.getElementById('shop-html-hud');
+    this.goldText = document.getElementById('shop-gold-text');
 
-    // 2. Buy Heal (Potion)
-    this.createShopItem(
-      'HEALTH POTION (20G)',
-      'Heals 30 HP',
-      250,
-      ex.Color.Green,
-      () => GameState.buyHeal(20, 30),
-    );
+    this.potionBtn = document.getElementById(
+      'shop-item-potion',
+    ) as HTMLButtonElement;
+    this.crystalBtn = document.getElementById(
+      'shop-item-crystal',
+    ) as HTMLButtonElement;
+    this.exitBtn = document.getElementById(
+      'shop-exit-button',
+    ) as HTMLButtonElement;
 
-    // 3. Buy Max HP (Life Crystal)
-    this.createShopItem(
-      'LIFE CRYSTAL (50G)',
-      '+20 Max HP & Full Heal',
-      350,
-      ex.Color.Orange,
-      () => GameState.buyMaxHP(50, 20),
-    );
-
-    // 4. Exit Button
-    const exitButton = new ex.Actor({
-      pos: ex.vec(400, 520),
-      width: 200,
-      height: 50,
-      color: ex.Color.Gray,
-    });
-
-    const exitLabel = new ex.Label({
-      text: 'DESCEND FURTHER',
-      font: new ex.Font({
-        size: 18,
-        color: ex.Color.White,
-        textAlign: ex.TextAlign.Center,
-      }),
-    });
-    exitButton.addChild(exitLabel);
-
-    exitButton.on('pointerup', () => {
-      this.engine.goToScene('level1');
-    });
-
-    this.add(exitButton);
+    this.setupInputListeners();
   }
 
   /**
-   * Helper to create shop buttons consistently
+   * Fires every single time the scene transitions into view.
    */
-  private createShopItem(
-    name: string,
-    desc: string,
-    yPos: number,
-    color: ex.Color,
-    buyFn: () => boolean,
+  override onActivate(context: ex.SceneActivationContext<unknown>) {
+    super.onActivate(context);
+    this.syncGoldTracker();
+
+    // Reveal the clean structural HTML layout overlay layer smoothly
+    if (this.shopOverlay) {
+      this.shopOverlay.style.display = 'block';
+    }
+  }
+
+  /**
+   * Fires whenever we are routing completely away from the shop scene.
+   * 🌟 FIXED: Changed type signature to use valid SceneActivationContext
+   */
+  override onDeactivate(context: ex.SceneActivationContext<any, any>) {
+    super.onDeactivate(context);
+
+    // Hide the layout container cleanly so it doesn't bleed back into overworld exploration canvas loops
+    if (this.shopOverlay) {
+      this.shopOverlay.style.display = 'none';
+    }
+  }
+
+  /**
+   * Links native HTML element clicks safely to our game logic routines.
+   */
+  private setupInputListeners() {
+    // 🧪 Purchase Potion Action Routing
+    if (this.potionBtn) {
+      this.potionBtn.onclick = (e) => {
+        e.preventDefault();
+        const success = GameState.buyHeal(20, 30);
+        this.handlePurchaseFeedback(this.potionBtn!, success);
+      };
+    }
+
+    // 🧪 Purchase Max HP Upgrade Action Routing
+    if (this.crystalBtn) {
+      this.crystalBtn.onclick = (e) => {
+        e.preventDefault();
+        const success = GameState.buyMaxHP(50, 20);
+        this.handlePurchaseFeedback(this.crystalBtn!, success);
+      };
+    }
+
+    // 🚪 Close Shop & Route to Exploration loop
+    if (this.exitBtn) {
+      this.exitBtn.onclick = (e) => {
+        e.preventDefault();
+        console.log(
+          'Leaving shop intermission, descending to next depth level...',
+        );
+        this.engine.goToScene('level1');
+      };
+
+      // Simple button hover aesthetic behaviors via JS styles
+      this.exitBtn.onmouseenter = () => {
+        if (this.exitBtn) this.exitBtn.style.background = '#3f3f5c';
+      };
+      this.exitBtn.onmouseleave = () => {
+        if (this.exitBtn) this.exitBtn.style.background = '#27273a';
+      };
+    }
+  }
+
+  private syncGoldTracker() {
+    if (this.goldText) {
+      this.goldText.innerText = `${state.totalCoins}`;
+    }
+  }
+
+  /**
+   * Handles modern responsive styling visual animations on native elements
+   * without needing manual engine action tracking loops.
+   */
+  private handlePurchaseFeedback(
+    element: HTMLButtonElement,
+    isSuccessful: boolean,
   ) {
-    const button = new ex.Actor({
-      pos: ex.vec(400, yPos),
-      width: 400,
-      height: 80,
-      color: color,
-    });
+    const originalBackground = element.style.background;
 
-    const label = new ex.Label({
-      text: name,
-      pos: ex.vec(0, -10),
-      font: new ex.Font({
-        size: 22,
-        color: ex.Color.White,
-        textAlign: ex.TextAlign.Center,
-        bold: true,
-      }),
-    });
+    if (isSuccessful) {
+      console.log('Transaction verified successfully!');
+      this.syncGoldTracker();
 
-    const subLabel = new ex.Label({
-      text: desc,
-      pos: ex.vec(0, 20),
-      font: new ex.Font({
-        size: 14,
-        color: ex.Color.White,
-        textAlign: ex.TextAlign.Center,
-      }),
-    });
+      // Flash structural green indicator frames dynamically
+      element.style.transform = 'scale(0.97)';
+      element.style.background = '#2e7d32';
 
-    button.addChild(label);
-    button.addChild(subLabel);
+      setTimeout(() => {
+        element.style.transform = '';
+        element.style.background = originalBackground;
+      }, 120);
+    } else {
+      console.log('Transaction denied: Insufficient capital reserves.');
 
-    button.on('pointerup', () => {
-      const success = buyFn();
-      if (success) {
-        // Flash white on success
-        button.actions.blink(50, 50, 2);
-        console.log(`Purchased ${name}`);
-      } else {
-        // Shake on failure
-        button.actions.moveBy(10, 0, 50).moveBy(-20, 0, 50).moveBy(10, 0, 50);
-      }
-    });
+      // Shake animation effect utilizing inline styling offsets
+      element.style.transform = 'translateX(6px)';
+      element.style.borderColor = '#dc2626';
 
-    this.add(button);
+      setTimeout(() => (element.style.transform = 'translateX(-6px)'), 60);
+      setTimeout(() => (element.style.transform = 'translateX(4px)'), 120);
+      setTimeout(() => {
+        element.style.transform = '';
+        element.style.borderColor = 'transparent';
+      }, 180);
+    }
   }
 }

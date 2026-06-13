@@ -4,6 +4,7 @@ import { Resources, game } from '../resources';
 import { Element } from '../types/combat';
 import { state } from '../state'; // Imported state singleton tracking instance
 import { Card, CardValidator } from '../logic/card-validator';
+import { UpgradeCard } from '../logic/upgrades';
 
 export class BattleHUD extends ex.ScreenElement {
   private currentParty: any[] = [];
@@ -410,7 +411,7 @@ export class BattleHUD extends ex.ScreenElement {
     timer.start();
   }
 
-  public triggerLevelUpUI() {
+  public triggerLevelUpUI(upgrades: UpgradeCard[]) {
     const overlay = document.getElementById('level-up-overlay');
     let cardsRow = document.getElementById('cards-row');
 
@@ -419,12 +420,12 @@ export class BattleHUD extends ex.ScreenElement {
       return;
     }
 
-    // 1. MATCH THE GAME CANVAS CONTAINER SPACE PERFECTLY (NOT THE BROWSER VIEWPORT)
+    // Centering fixes to lock it to the canvas viewport bounds
     overlay.style.position = 'absolute';
     overlay.style.top = '0';
     overlay.style.left = '0';
-    overlay.style.width = '100%'; // Changes from 100vw to fill parent dimensions
-    overlay.style.height = '100%'; // Changes from 100vh to fill parent dimensions
+    overlay.style.width = '100%';
+    overlay.style.height = '100%';
     overlay.style.zIndex = '999999';
     overlay.style.display = 'flex';
     overlay.style.flexDirection = 'column';
@@ -433,11 +434,9 @@ export class BattleHUD extends ex.ScreenElement {
     overlay.style.backgroundColor = 'rgba(10, 10, 15, 0.9)';
     overlay.style.boxSizing = 'border-box';
 
-    // 2. KEEP CARDS-ROW SAFELY ATTACHED DIRECTLY TO THE OVERLAY ROOT
     if (cardsRow && cardsRow.parentElement !== overlay) {
       overlay.appendChild(cardsRow);
     }
-
     if (!cardsRow) {
       cardsRow = document.createElement('div');
       cardsRow.id = 'cards-row';
@@ -446,75 +445,50 @@ export class BattleHUD extends ex.ScreenElement {
 
     cardsRow.innerHTML = '';
 
-    // 3. SECURE CENTERING FOR THE INTERACTIVE CHOICE ROW
     cardsRow.style.display = 'flex' as any;
     cardsRow.style.setProperty('display', 'flex', 'important');
     cardsRow.style.flexDirection = 'row';
     cardsRow.style.justifyContent = 'center';
     cardsRow.style.alignItems = 'center';
-    cardsRow.style.gap = '16px'; // Slightly tighter gaps for smaller canvas bounds
+    cardsRow.style.gap = '16px';
     cardsRow.style.width = '100%';
-    cardsRow.style.maxWidth = '100%';
     cardsRow.style.height = 'auto';
     cardsRow.style.marginTop = '24px';
     cardsRow.style.boxSizing = 'border-box';
 
-    const currentPartner =
-      (window as any).ACTIVE_DEMON_PARTNER ||
-      this.currentParty[0]?.name ||
-      'Partner';
-
-    const upgrades = [
-      {
-        id: 'hp_up',
-        title: 'Life Surge',
-        desc: `Increases ${currentPartner}'s Max HP by +25.`,
-        stat: 'maxHp',
-        value: 25,
-      },
-      {
-        id: 'mp_up',
-        title: 'Mana Spring',
-        desc: `Increases ${currentPartner}'s Max MP by +15.`,
-        stat: 'maxMp',
-        value: 15,
-      },
-      {
-        id: 'dmg_up',
-        title: 'Almighty Boost',
-        desc: 'Increases base damage multipliers by 15%.',
-        stat: 'powerMod',
-        value: 0.15,
-      },
-    ];
-
-    // 4. GENERATE SCALED CARDS
-    upgrades.forEach((upgrade) => {
+    // Loop directly over your actual randomized upgrade data pool
+    upgrades.forEach((card) => {
       const cardEl = document.createElement('div');
       cardEl.className = 'upgrade-card-choice-override';
 
       cardEl.style.display = 'flex';
       cardEl.style.flexDirection = 'column';
-      cardEl.style.justifyContent = 'center';
+      cardEl.style.justifyContent = 'space-between'; // Balanced stack spacing
       cardEl.style.alignItems = 'center';
       cardEl.style.cursor = 'pointer';
-
-      // Slightly optimized dimensions to look brilliant inside your exact canvas shape
-      cardEl.style.width = '160px';
-      cardEl.style.height = '140px';
-      cardEl.style.padding = '12px';
+      cardEl.style.width = '175px';
+      cardEl.style.height = '155px';
+      cardEl.style.padding = '14px';
       cardEl.style.backgroundColor = '#151518';
       cardEl.style.border = '2px solid #ffcc00';
       cardEl.style.borderRadius = '8px';
       cardEl.style.boxSizing = 'border-box';
       cardEl.style.textAlign = 'center';
 
+      // Map color tints to your rarities dynamically
+      const rarityColor = card.rarity === 'Rare' ? '#00ccff' : card.rarity === 'Epic' ? '#cc00ff' : '#8c9ba5';
+
       cardEl.innerHTML = `
-        <div style="color: #ffcc00 !important; font-family: monospace; font-weight: bold; font-size: 13px; margin-bottom: 6px; pointer-events: none;">
-          ${upgrade.title.toUpperCase()}
+        <div>
+          <div style="color: #ffcc00 !important; font-family: monospace; font-weight: bold; font-size: 13px; margin-bottom: 6px; pointer-events: none;">
+            ${card.title.toUpperCase()}
+          </div>
+          <div style="color: #ffffff !important; font-family: monospace; font-size: 11px; line-height: 1.3; pointer-events: none; margin-bottom: 8px;">
+            ${card.description}
+          </div>
         </div>
-        <div style="color: #ffffff !important; font-family: monospace; font-size: 11px; line-height: 1.3; pointer-events: none;">
-          ${upgrade.desc}
+        <div style="color: ${rarityColor} !important; font-family: monospace; font-size: 10px; font-weight: bold; text-transform: uppercase; pointer-events: none;">
+          ${card.rarity}
         </div>
       `;
 
@@ -529,9 +503,11 @@ export class BattleHUD extends ex.ScreenElement {
 
       cardEl.onclick = (e) => {
         e.stopPropagation();
-        this.applyUpgradeReward(upgrade);
-        if (cardsRow) cardsRow.innerHTML = '';
 
+        // 🌟 FIRE THE CORE LOGIC DIRECTLY EMBEDDED IN THE CARD POOL DATA
+        card.applyReward();
+
+        if (cardsRow) cardsRow.innerHTML = '';
         overlay.style.display = 'none';
 
         if (this.scene && (this.scene as any).resumeOverworldAfterUpgrade) {
@@ -543,24 +519,24 @@ export class BattleHUD extends ex.ScreenElement {
     });
   }
 
-  private applyUpgradeReward(upgrade: any) {
-    const activeDemon = this.currentParty[0];
-    if (activeDemon) {
-      if (upgrade.stat === 'maxHp') {
-        activeDemon.maxHp = (activeDemon.maxHp || 100) + upgrade.value;
-        activeDemon.hp = activeDemon.maxHp; // Heal to full capacity on level up
-      } else if (upgrade.stat === 'maxMp') {
-        activeDemon.maxMp = (activeDemon.maxMp || 50) + upgrade.value;
-        activeDemon.mp = activeDemon.maxMp;
-      }
-      this.pushLog(
-        `✨ Upgraded ${activeDemon.name || 'Partner'}: Gained ${upgrade.title}!`,
-        'weak',
-      );
-    }
-
-    this.refreshPartyUI();
-  }
+  // private applyUpgradeReward(upgrade: any) {
+  //   const activeDemon = this.currentParty[0];
+  //   if (activeDemon) {
+  //     if (upgrade.stat === 'maxHp') {
+  //       activeDemon.maxHp = (activeDemon.maxHp || 100) + upgrade.value;
+  //       activeDemon.hp = activeDemon.maxHp; // Heal to full capacity on level up
+  //     } else if (upgrade.stat === 'maxMp') {
+  //       activeDemon.maxMp = (activeDemon.maxMp || 50) + upgrade.value;
+  //       activeDemon.mp = activeDemon.maxMp;
+  //     }
+  //     this.pushLog(
+  //       `✨ Upgraded ${activeDemon.name || 'Partner'}: Gained ${upgrade.title}!`,
+  //       'weak',
+  //     );
+  //   }
+  //
+  //   this.refreshPartyUI();
+  // }
 
   private triggerGameOver() {
     this.isProcessingVictory = true;

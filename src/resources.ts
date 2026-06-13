@@ -12,6 +12,8 @@ export const Resources = {
   JackFrostSprite: new ex.ImageSource('/sprites/jackfrost.png'),
   BattleBackground: new ex.ImageSource('/sprites/battle-bg.png'),
   SlimeSprite: new ex.ImageSource('/sprites/slime.png'),
+  StairsSprite: new ex.ImageSource('/sprites/stairs.png'),
+  BossSprite: new ex.ImageSource('/sprites/boss.png'),
 
   // Audio Tracks
   BlipSound: new ex.Sound('/sounds/blip.wav'),
@@ -43,4 +45,6 @@ export const loader = new ex.Loader([
   Resources.JackFrostSprite,
   Resources.BattleBackground,
   Resources.SlimeSprite,
+  Resources.StairsSprite,
+  Resources.BossSprite,
 ]);

@@ -7,6 +7,12 @@ import { Resources } from '../resources';
 import { state } from '../state';
 import { DungeonBuilder } from './dungeon-builder';
 
+// Create a typed structural interface for scene safety
+export interface FloorGenerationResult {
+  enemies: Enemy[];
+  playerSpawnVector: ex.Vector;
+}
+
 export class LevelGenerator {
   /**
    * Generates a procedurally carved random room floor grid layout.
@@ -16,7 +22,7 @@ export class LevelGenerator {
     count: number,
     gridSize: number,
     tileSize: number,
-  ): Enemy[] {
+  ): FloorGenerationResult {
     const enemies: Enemy[] = [];
 
     // 1. Generate the logical 2D array grid layout matrix (0 = Wall, 1 = Floor)
@@ -29,18 +35,20 @@ export class LevelGenerator {
     // 2. Map the 2D procedural grid matrix out to Excalibur Actors
     for (let y = 0; y < gridSize; y++) {
       for (let x = 0; x < gridSize; x++) {
-        const worldX = x * tileSize;
-        const worldY = y * tileSize;
+        // Calculate the absolute visual center coordinates for the tile
+        const worldX = x * tileSize + tileSize / 2;
+        const worldY = y * tileSize + tileSize / 2;
 
         if (grid[y][x] === 0) {
           // --- SPAWN A SOLID COLLIDABLE WALL ---
-          this.spawnWall(scene, x, y, tileSize);
+          this.spawnWall(scene, worldX, worldY, tileSize);
         } else {
           // --- SPAWN A VISUAL FLOOR TILE ---
           const floorTile = new ex.Actor({
             pos: ex.vec(worldX, worldY),
             width: tileSize,
             height: tileSize,
+            name: 'Floor',
             z: -1, // Sits under everything else
           });
 
@@ -52,8 +60,8 @@ export class LevelGenerator {
           }
           scene.add(floorTile);
 
-          // Cache the grid coordinate vectors for safe entity distribution
-          openFloorTiles.push(ex.vec(x, y));
+          // Cache the real world coordinates for safe entity distribution
+          openFloorTiles.push(ex.vec(worldX, worldY));
         }
       }
     }
@@ -65,37 +73,26 @@ export class LevelGenerator {
       console.error(
         'Critical Failure: No floor space carved by DungeonBuilder!',
       );
-      return [];
+      return { enemies: [], playerSpawnVector: ex.vec(400, 300) };
     }
 
     // 3. Coordinate Player Spawn Anchor Location
-    // Pull the first open tile from our randomized deck to seat the Summoner
-    const playerGridPos = openFloorTiles.pop()!;
-    const player = scene.actors.find(
-      (a) => a.name === 'Summoner' || a.constructor.name === 'Summoner',
+    // Pull the real world vector position directly rather than looking up scene actors
+    const playerSpawnVector = openFloorTiles.pop()!;
+    console.log(
+      `Player starting position calculated safely at: ${playerSpawnVector.toString()}`,
     );
-    if (player) {
-      player.pos = ex.vec(
-        playerGridPos.x * tileSize,
-        playerGridPos.y * tileSize,
-      );
-      console.log(
-        `Player starting position anchored safely at: [${playerGridPos.x}, ${playerGridPos.y}]`,
-      );
-    }
 
     // 4. Coordinate Exit Stairs Spawn Location
     // Pull the next unique open tile to prevent overlapping any walls or player spawns
-    const stairsGridPos = openFloorTiles.pop()!;
-    const stairsGridX = stairsGridPos.x;
-    const stairsGridY = stairsGridPos.y;
+    const stairsWorldPos = openFloorTiles.pop()!;
 
     const stairs = new ex.Actor({
-      pos: ex.vec(stairsGridX * tileSize, stairsGridY * tileSize),
+      pos: stairsWorldPos,
       width: tileSize,
       height: tileSize,
       name: 'Stairs',
-      z: 99, // Set Z-index absurdly high so graphics layers cannot bury it
+      z: 99, // Set Z-index high so graphics layers cannot bury it
     });
 
     if (
@@ -107,7 +104,7 @@ export class LevelGenerator {
       stairs.graphics.use(Resources.StairsSprite.toSprite());
     } else {
       console.warn(
-        `Stairs texture not available. Dropping high-contrast text fallback at [${stairsGridX}, ${stairsGridY}]`,
+        `Stairs texture not available. Dropping text fallback at: ${stairsWorldPos.toString()}`,
       );
       stairs.color = ex.Color.Yellow;
 
@@ -120,14 +117,14 @@ export class LevelGenerator {
           bold: true,
           family: 'monospace',
         }),
-        pos: ex.vec(0, 6),
+        pos: ex.vec(0, 0),
       });
       stairs.addChild(textLabel);
     }
 
     scene.add(stairs);
     console.log(
-      `Exit stairs successfully spawned at grid position: [${stairsGridX}, ${stairsGridY}]`,
+      `Exit stairs successfully spawned at position: ${stairsWorldPos.toString()}`,
     );
 
     // --- Milestone Boss Floor Spawning (Every 5th Floor) ---
@@ -135,12 +132,12 @@ export class LevelGenerator {
 
     if (isBossFloor) {
       // Place the Boss guardian directly protecting the room's stairs exit vector
-      const boss = new Boss(stairsGridX * tileSize, stairsGridY * tileSize);
+      const boss = new Boss(stairsWorldPos.x, stairsWorldPos.y);
       scene.add(boss);
       enemies.push(boss);
 
       console.log(
-        `⚠️ BOSS ENCOUNTER! Giant guardian spawned at grid: [${stairsGridX}, ${stairsGridY}]`,
+        `⚠️ BOSS ENCOUNTER! Giant guardian spawned at position: ${stairsWorldPos.toString()}`,
       );
 
       // Reduce standard enemy count to avoid crowding the boss arena layout
@@ -152,16 +149,10 @@ export class LevelGenerator {
     const maxAvailableEnemies = Math.min(count, openFloorTiles.length);
 
     while (enemiesSpawned < maxAvailableEnemies) {
-      // Safely pop a guaranteed unique floor coordinate space
-      const enemyGridPos = openFloorTiles.pop()!;
-      const gridX = enemyGridPos.x;
-      const gridY = enemyGridPos.y;
+      const enemyWorldPos = openFloorTiles.pop()!;
 
-      // Skip the tile if it rests directly adjacent to the starting player location
-      if (
-        Math.abs(gridX - playerGridPos.x) <= 1 &&
-        Math.abs(gridY - playerGridPos.y) <= 1
-      ) {
+      // Skip the tile if it rests directly adjacent to the starting player location (within 2 tile lengths)
+      if (enemyWorldPos.distance(playerSpawnVector) < tileSize * 2) {
         continue;
       }
 
@@ -169,12 +160,12 @@ export class LevelGenerator {
 
       // Roll a 30% probability weight to handle monster variance assignments
       if (Math.random() < 0.3) {
-        enemy = new Ghost(gridX * tileSize, gridY * tileSize);
+        enemy = new Ghost(enemyWorldPos.x, enemyWorldPos.y);
         console.log(
-          `👻 Spooked! Ghost spawned at grid point: [${gridX}, ${gridY}]`,
+          `👻 Spooked! Ghost spawned at: ${enemyWorldPos.toString()}`,
         );
       } else {
-        enemy = new Slime(gridX * tileSize, gridY * tileSize);
+        enemy = new Slime(enemyWorldPos.x, enemyWorldPos.y);
       }
 
       scene.add(enemy);
@@ -183,7 +174,10 @@ export class LevelGenerator {
       enemiesSpawned++;
     }
 
-    return enemies;
+    return {
+      enemies,
+      playerSpawnVector,
+    };
   }
 
   /**
@@ -191,12 +185,12 @@ export class LevelGenerator {
    */
   private static spawnWall(
     scene: ex.Scene,
-    gridX: number,
-    gridY: number,
+    worldX: number,
+    worldY: number,
     tileSize: number,
   ) {
     const wall = new ex.Actor({
-      pos: ex.vec(gridX * tileSize, gridY * tileSize),
+      pos: ex.vec(worldX, worldY),
       width: tileSize,
       height: tileSize,
       color: ex.Color.fromHex('#222233'), // Dark navy-gray dungeon visual blocks
