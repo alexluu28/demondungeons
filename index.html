@@ -284,7 +284,7 @@
       transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
-    /* 🃏 UPGRADED TIẾN LÊN SELECTION HAND STAGE ARCHITECTURE */
+    /* 🃏 UPGRADED CARD SELECTION HAND STAGE ARCHITECTURE */
     .player-hand-wrapper {
       position: absolute;
       bottom: 25px; /* Locked nicely along base border footprint */
@@ -423,8 +423,8 @@
       margin: 0 0 40px 0;
     }
 
-    /* Grid alignment organizing level selections */
-    #cards-row {
+    /* Grid alignment organizing draft selection panels */
+    #demon-cards-row, #level-up-cards-row {
       display: flex;
       flex-direction: row;
       gap: 32px;
@@ -503,6 +503,28 @@
       background-color: #06060a;
       box-sizing: border-box;
     }
+
+    /* --- 🛒 HTML SHOP OVERLAY SYSTEM STYLES --- */
+    .shop-button-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 100%;
+      border: 2px solid transparent;
+      padding: 16px 28px;
+      border-radius: 6px;
+      cursor: pointer;
+      outline: none;
+      box-sizing: border-box;
+      transition: transform 0.1s ease, background 0.2s ease, border-color 0.2s ease;
+    }
+    .shop-button-item:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(0, 0, 0, 0.4);
+    }
+    .shop-button-item:active {
+      transform: scale(0.98);
+    }
   </style>
 </head>
 <body>
@@ -510,14 +532,12 @@
 <div id="game-wrapper">
   <canvas id="game"></canvas>
 
-  <!-- 😈 DEBUT DEMON CHOOSE DRAFT OVERLAY -->
   <div id="demon-selector-overlay">
     <div class="draft-container">
       <h2 class="draft-headline">🔮 CHOOSE YOUR DEMON COMPANION 🔮</h2>
       <p class="draft-subline">Your selection dictates core card combat elements and damage multipliers</p>
 
-      <div id="cards-row">
-        <!-- Pixie Selection Card -->
+      <div id="demon-cards-row">
         <div class="upgrade-card" id="select-pixie">
           <div>
             <div class="card-title" style="color: #00ffcc;">PIXIE</div>
@@ -532,7 +552,6 @@
           <div class="card-rarity rarity-rare">Zio Affinity</div>
         </div>
 
-        <!-- Jack Frost Selection Card -->
         <div class="upgrade-card" id="select-jackfrost">
           <div>
             <div class="card-title" style="color: #3a86ff;">JACK FROST</div>
@@ -550,7 +569,6 @@
     </div>
   </div>
 
-  <!-- Persistent Exploration Overworld Hub -->
   <div id="exploration-html-hud">
     <div class="hud-top-bar">
       <div class="hud-stat-box"><span class="hud-label">STAGE:</span><span id="hud-floor-text">B1</span></div>
@@ -565,7 +583,6 @@
     </div>
   </div>
 
-  <!-- Combat Interface HUD -->
   <div id="battle-html-hud" style="display: none;">
     <div id="battle-log-container">
       <div class="battle-log-header">COMBAT LOG</div>
@@ -577,7 +594,6 @@
     <div id="battle-enemy-container"></div>
     <div id="battle-party-row"></div>
 
-    <!-- 🃏 Card Combos Interactive Arena Zone -->
     <div class="player-hand-wrapper">
       <div id="cards-in-hand-container"></div>
       <div class="hand-controls">
@@ -587,17 +603,49 @@
     </div>
   </div>
 
-  <!-- Reward Level Draft Overlay Screen -->
+  <div id="shop-html-hud" style="display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(10, 10, 15, 0.96); box-sizing: border-box; padding: 60px; z-index: 10005;">
+    <div style="display: flex; justify-content: space-between; align-items: center; max-width: 750px; margin: 0 auto 50px auto;">
+      <h1 style="margin: 0; font-size: 34px; letter-spacing: 2px; color: #ffffff; font-weight: bold; text-shadow: 0 0 10px rgba(255, 255, 255, 0.1);">WANDERING MERCHANT</h1>
+      <div style="font-size: 20px; color: #ffd700; font-weight: bold; background: rgba(255, 215, 0, 0.1); padding: 8px 18px; border: 2px solid #ffd700; border-radius: 4px; letter-spacing: 1px;">
+        GOLD: <span id="shop-gold-text">0</span>
+      </div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 24px; max-width: 600px; margin: 0 auto 60px auto;">
+      <button id="shop-item-potion" class="shop-button-item" style="background: #112d20; border-color: #1b4332;">
+        <div style="text-align: left;">
+          <div style="font-size: 20px; font-weight: bold; color: #d8f3dc; margin-bottom: 6px; letter-spacing: 0.5px;">HEALTH POTION</div>
+          <div style="font-size: 14px; color: #b7e4c7;">Heals 30 HP to all Party members</div>
+        </div>
+        <div style="font-size: 20px; font-weight: bold; color: #ffd700; letter-spacing: 1px;">20G</div>
+      </button>
+
+      <button id="shop-item-crystal" class="shop-button-item" style="background: #2e1a47; border-color: #4c2885;">
+        <div style="text-align: left;">
+          <div style="font-size: 20px; font-weight: bold; color: #f5f3ff; margin-bottom: 6px; letter-spacing: 0.5px;">LIFE CRYSTAL</div>
+          <div style="font-size: 14px; color: #ddd6fe;">+20 Max HP & Full Vitality Heal</div>
+        </div>
+        <div style="font-size: 20px; font-weight: bold; color: #ffd700; letter-spacing: 1px;">50G</div>
+      </button>
+    </div>
+
+    <div style="text-align: center;">
+      <button id="shop-exit-button" style="background: #27273a; border: 2px solid #3f3f5c; color: #f3f4f6; padding: 14px 50px; font-size: 16px; font-family: monospace; font-weight: bold; letter-spacing: 1.5px; cursor: pointer; border-radius: 4px; transition: background 0.2s, border-color 0.2s; outline: none;">
+        DESCEND FURTHER
+      </button>
+    </div>
+  </div>
+
   <div id="level-up-overlay" style="display: none;">
     <div class="draft-container">
       <h2 class="draft-headline">✨ LEVEL UP! ✨</h2>
       <p class="draft-subline">Select an upgrade card to reinforce your party members</p>
-      <div id="cards-row"></div>
+
+      <div id="level-up-cards-row"></div>
     </div>
   </div>
 </div>
 
-<!-- Core Selection State Binding Engine Script Group -->
 <script>
   // Shared global state proxy readable by the Excalibur engine
   window.ACTIVE_DEMON_PARTNER = null;
